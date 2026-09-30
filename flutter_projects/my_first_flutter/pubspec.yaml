@@ -1,0 +1,71 @@
+name: my_first_flutter
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  # App-wide font (Poppins) — fetched from Google Fonts on first use
+  # and cached to disk afterward, so it works offline after that.
+  google_fonts: ^8.0.2
+  url_launcher: ^6.3.2
+  http: ^1.6.0
+  shared_preferences: ^2.5.5
+  # Access + refresh JWTs are kept here (Android Keystore / iOS
+  # Keychain), NOT in shared_preferences where they sat in plaintext.
+  flutter_secure_storage: ^9.2.4
+  image_picker: ^1.2.1
+  path_provider: ^2.1.5
+  firebase_core: ^4.6.0
+  firebase_messaging: ^16.1.3
+  flutter_local_notifications: ^21.0.0
+  share_plus: ^12.0.2
+  intl_phone_field: ^3.2.0
+  add_2_calendar: ^3.0.1
+  google_maps_flutter: ^2.17.1
+  flutter_map: ^8.3.0
+  latlong2: ^0.9.1
+  geolocator: ^13.0.2
+  another_flushbar: ^2.2.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/csalogowhite.png
+    - assets/certs/csa_ca.pem
+    - assets/csaintro2.png
+    - assets/csaintro3.png
+    - assets/CSALOGO.png
+    - assets/schoolpupil.png
+    - assets/ghaquoteofarm-removebg-preview.png
+    - assets/main_user_images/
+    - assets/icons/instagram_logo.png
+    - assets/icons/twitter_logo.png
+    - assets/icons/facebook_logo.png
+    - assets/icons/linkedin_logo.png
+    - assets/icons/whatsapp_logo.png
+    - assets/business_csa.png
+    - assets/children_final.png
+    - assets/public_final.png
+    - assets/main_csa_logo_final.png
+
+  # SourceSansPro/BankGothic (bundled .ttf/.otf assets) removed —
+  # replaced app-wide by Poppins via the google_fonts package (see
+  # main.dart's ThemeData). The old font files under assets/fonts/ are
+  # left on disk but no longer declared here, so they're no longer
+  # bundled into the built app.
+
+dependency_overrides:
+  path_provider_android: 2.2.15
+  jni: 0.13.0

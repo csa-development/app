@@ -1,0 +1,167 @@
+from django.urls import path
+
+from .views import (
+    get_news,
+    get_alerts,
+    get_breaking_news,
+    get_events,
+    get_campaigns,
+    get_campaign_detail,
+    get_press_releases,
+    register_event_interest,
+    unregister_event_interest,
+    check_event_registration,
+    get_my_event_registrations,
+)
+from .admin_views import (
+    admin_campaign_detail,
+    admin_campaigns_collection,
+    admin_comms_dashboard,
+    admin_event_detail,
+    admin_events_collection,
+    admin_event_registrations,
+    admin_check_in_registration,
+    admin_campaign_gallery_create,
+    admin_campaign_gallery_detail,
+    admin_campaign_news_create,
+    admin_campaign_news_detail,
+    admin_news_collection,
+    admin_news_detail,
+    admin_press_collection,
+    admin_press_detail,
+    admin_campaign_schedule_create,
+    admin_campaign_schedule_detail,
+    admin_campaign_speaker_create,
+    admin_campaign_speaker_detail,
+)
+
+urlpatterns = [
+    path('news/', get_news, name='get_news'),
+    path('alerts/', get_alerts, name='get_alerts'),
+    path(
+        'breaking-news/', get_breaking_news, name='get_breaking_news'
+    ),
+    path('events/', get_events, name='get_events'),
+    path('campaigns/', get_campaigns, name='get_campaigns'),
+    path(
+        'campaigns/<int:campaign_id>/',
+        get_campaign_detail,
+        name='get_campaign_detail',
+    ),
+    path(
+        'press-releases/', get_press_releases, name='get_press_releases'
+    ),
+    path(
+        'events/<int:event_id>/register/',
+        register_event_interest,
+        name='register_event_interest',
+    ),
+    path(
+        'events/<int:event_id>/unregister/',
+        unregister_event_interest,
+        name='unregister_event_interest',
+    ),
+    path(
+        'events/<int:event_id>/check-registration/',
+        check_event_registration,
+        name='check_event_registration',
+    ),
+    path(
+        'events/my-registrations/',
+        get_my_event_registrations,
+        name='get_my_event_registrations',
+    ),
+    path(
+        'admin/news/', admin_news_collection, name='admin_news_collection'
+    ),
+    path(
+        'admin/news/<int:article_id>/',
+        admin_news_detail,
+        name='admin_news_detail',
+    ),
+    path(
+        'admin/events/',
+        admin_events_collection,
+        name='admin_events_collection',
+    ),
+    path(
+        'admin/events/<int:event_id>/',
+        admin_event_detail,
+        name='admin_event_detail',
+    ),
+    path(
+        'admin/events/<int:event_id>/registrations/',
+        admin_event_registrations,
+        name='admin_event_registrations',
+    ),
+    path(
+        'admin/events/<int:event_id>/check-in/',
+        admin_check_in_registration,
+        name='admin_check_in_registration',
+    ),
+    path(
+        'admin/campaigns/',
+        admin_campaigns_collection,
+        name='admin_campaigns_collection',
+    ),
+    path(
+        'admin/campaigns/<int:campaign_id>/',
+        admin_campaign_detail,
+        name='admin_campaign_detail',
+    ),
+    path(
+        'admin/campaigns/<int:campaign_id>/gallery/',
+        admin_campaign_gallery_create,
+        name='admin_campaign_gallery_create',
+    ),
+    path(
+        'admin/campaigns/gallery/<int:gallery_id>/',
+        admin_campaign_gallery_detail,
+        name='admin_campaign_gallery_detail',
+    ),
+    path(
+        'admin/campaigns/<int:campaign_id>/schedule/',
+        admin_campaign_schedule_create,
+        name='admin_campaign_schedule_create',
+    ),
+    path(
+        'admin/campaigns/schedule/<int:schedule_id>/',
+        admin_campaign_schedule_detail,
+        name='admin_campaign_schedule_detail',
+    ),
+    path(
+        'admin/campaigns/<int:campaign_id>/speakers/',
+        admin_campaign_speaker_create,
+        name='admin_campaign_speaker_create',
+    ),
+    path(
+        'admin/campaigns/speakers/<int:speaker_id>/',
+        admin_campaign_speaker_detail,
+        name='admin_campaign_speaker_detail',
+    ),
+    path(
+        'admin/campaigns/<int:campaign_id>/related-news/',
+        admin_campaign_news_create,
+        name='admin_campaign_news_create',
+    ),
+    path(
+        'admin/campaigns/related-news/<int:related_news_id>/',
+        admin_campaign_news_detail,
+        name='admin_campaign_news_detail',
+    ),
+    path(
+        'admin/press-releases/',
+        admin_press_collection,
+        name='admin_press_collection',
+    ),
+    path(
+        'admin/press-releases/<int:release_id>/',
+        admin_press_detail,
+        name='admin_press_detail',
+    ),
+    path(
+        'admin/dashboard/comms/',
+        admin_comms_dashboard,
+        name='admin_comms_dashboard',
+    ),
+]

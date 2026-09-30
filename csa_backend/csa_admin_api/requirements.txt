@@ -1,0 +1,11 @@
+Django==6.0.7
+djangorestframework==3.17.1
+djangorestframework_simplejwt==5.5.1
+python-dotenv==1.2.2
+psycopg2-binary==2.9.12
+whitenoise==6.12.0
+uvicorn==0.34.3
+requests==2.34.2
+google-auth==2.56.2
+Pillow==12.3.0
+-e ../csa_shared_models

@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "csa-shared-models"
+version = "0.1.0"
+description = "Shared Django models, migrations, and signals for csa_mobile_api and csa_admin_api. Single source of truth for schema shared by both processes against the one csa_db database."
+requires-python = ">=3.10"
+dependencies = [
+    "Django>=5.0",
+    "google-auth>=2.0",
+    "requests>=2.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["csa_shared_models*"]

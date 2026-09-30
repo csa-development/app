@@ -1,0 +1,411 @@
+import random
+
+from django.conf import settings
+from django.core.mail import send_mail
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from .models import (
+    NewsArticle,
+    Event,
+    Campaign,
+    PressRelease,
+    EventRegistration,
+)
+
+
+def get_image_url(request, image):
+    if image:
+        return request.build_absolute_uri(image.url)
+    return None
+
+
+def _generate_check_in_code():
+    """Generates a unique CSA-#### style check-in code."""
+    while True:
+        code = f"CSA-{random.randint(1000, 9999)}"
+        if not EventRegistration.objects.filter(check_in_code=code).exists():
+            return code
+
+
+def _send_check_in_code_email(user, event, code):
+    """Emails the check-in code to the user, reusing existing SMTP config.
+
+    Fails silently (does not raise) so a slow/broken email server never
+    blocks the registration itself from succeeding.
+    """
+    if not user.email:
+        return
+    try:
+        send_mail(
+            subject=f'Your check-in code for {event.title}',
+            message=(
+                f"Hi {user.first_name or user.username},\n\n"
+                f"You're registered for \"{event.title}\" on "
+                f"{event.event_date.strftime('%B %d, %Y')}.\n\n"
+                f"Your check-in code is: {code}\n\n"
+                f"Show this code at the door when you arrive, or give your "
+                f"name if you don't have it handy.\n\n"
+                f"— Cyber Security Authority"
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=True,
+        )
+    except Exception:
+        # Never let an email failure break registration.
+        pass
+
+
+def _send_check_in_code_sms(user, event, code):
+    """
+    TODO: No SMS provider is currently wired up in this project.
+    Once one is chosen (e.g. Twilio, Hubtel, Africa's Talking), send the
+    check-in code here the same way OTPs are sent via SMS.
+    """
+    pass
+
+
+@api_view(['GET'])
+def get_news(request):
+    category = request.query_params.get('category', None)
+    page = int(request.query_params.get('page', 1))
+    page_size = int(request.query_params.get('page_size', 10))
+
+    if category:
+        articles = NewsArticle.objects.filter(
+            is_published=True,
+            category=category.upper()
+        ).order_by('-date_published')
+    else:
+        articles = NewsArticle.objects.filter(
+            is_published=True
+        ).order_by('-date_published')
+
+    total_count = articles.count()
+    start = (page - 1) * page_size
+    end = start + page_size
+    articles = articles[start:end]
+
+    data = [
+        {
+            'id': a.id,
+            'title': a.title,
+            'body': a.body,
+            'category': a.category,
+            'category_display': a.get_category_display(),
+            'image': get_image_url(request, a.image),
+            'date_published': a.date_published.isoformat(),
+            'is_breaking': a.is_breaking,
+        }
+        for a in articles
+    ]
+
+    return Response({
+        'news': data,
+        'total_count': total_count,
+        'page': page,
+        'page_size': page_size,
+        'has_more': end < total_count,
+    })
+
+
+@api_view(['GET'])
+def get_alerts(request):
+    alerts = NewsArticle.objects.filter(
+        is_published=True,
+        category='ALERT'
+    ).order_by('-date_published')
+
+    data = [
+        {
+            'id': a.id,
+            'title': a.title,
+            'body': a.body,
+            'date_published': a.date_published.isoformat(),
+        }
+        for a in alerts
+    ]
+
+    return Response({'alerts': data})
+
+
+@api_view(['GET'])
+def get_breaking_news(request):
+    articles = NewsArticle.objects.filter(
+        is_published=True,
+        is_breaking=True
+    ).order_by('-date_published')[:5]
+
+    data = [
+        {
+            'id': a.id,
+            'title': a.title,
+            'body': a.body,
+            'category': a.category,
+            'category_display': a.get_category_display(),
+            'image': get_image_url(request, a.image),
+            'date_published': a.date_published.isoformat(),
+        }
+        for a in articles
+    ]
+
+    return Response({'breaking_news': data})
+
+
+@api_view(['GET'])
+def get_events(request):
+    events = Event.objects.filter(
+        is_published=True
+    ).order_by('-event_date')
+
+    data = [
+        {
+            'id': e.id,
+            'title': e.title,
+            'description': e.description,
+            'location': e.location,
+            'event_date': e.event_date.strftime('%B %d, %Y'),
+            'end_date': e.end_date.strftime('%B %d, %Y') if e.end_date else None,
+            'image': get_image_url(request, e.image),
+            'total_registrations': e.registrations.count(),
+        }
+        for e in events
+    ]
+
+    return Response({'events': data})
+
+
+@api_view(['GET'])
+def get_campaigns(request):
+    campaigns = Campaign.objects.filter(
+        is_published=True
+    ).order_by('-start_date')
+
+    data = [
+        {
+            'id': c.id,
+            'title': c.title,
+            'description': c.description,
+            'start_date': c.start_date.strftime('%B %d, %Y'),
+            'end_date': c.end_date.strftime('%B %d, %Y') if c.end_date else None,
+            'target_audience': c.target_audience,
+            'category': c.category,
+            'category_display': c.get_category_display(),
+            'image': get_image_url(request, c.image),
+        }
+        for c in campaigns
+    ]
+
+    return Response({'campaigns': data})
+
+
+@api_view(['GET'])
+def get_campaign_detail(request, campaign_id):
+    try:
+        campaign = Campaign.objects.get(id=campaign_id, is_published=True)
+    except Campaign.DoesNotExist:
+        return Response({'error': 'Campaign not found'}, status=404)
+
+    gallery = [
+        {
+            'id': g.id,
+            'image': get_image_url(request, g.image),
+            'caption': g.caption,
+        }
+        for g in campaign.gallery.all()
+    ]
+
+    schedule = []
+    current_week = None
+    current_sessions = []
+
+    for s in campaign.schedule.all():
+        if s.week_number != current_week:
+            if current_week is not None:
+                schedule.append({
+                    'week': current_week,
+                    'sessions': current_sessions,
+                })
+            current_week = s.week_number
+            current_sessions = []
+        current_sessions.append({
+            'start_time': s.start_time.strftime('%H:%M'),
+            'end_time': s.end_time.strftime('%H:%M') if s.end_time else None,
+            'session_title': s.session_title,
+            'speaker': s.speaker,
+            'venue': s.venue,
+            'day': s.day,
+        })
+
+    if current_week is not None:
+        schedule.append({
+            'week': current_week,
+            'sessions': current_sessions,
+        })
+
+    speakers = [
+        {
+            'id': sp.id,
+            'name': sp.name,
+            'title': sp.title,
+            'organisation': sp.organisation,
+            'bio': sp.bio,
+            'photo': get_image_url(request, sp.photo),
+        }
+        for sp in campaign.speakers.all()
+    ]
+
+    related_news = [
+        {
+            'id': cn.article.id,
+            'title': cn.article.title,
+            'body': cn.article.body,
+            'image': get_image_url(request, cn.article.image),
+            'date_published': cn.article.date_published.isoformat(),
+            'category_display': cn.article.get_category_display(),
+        }
+        for cn in campaign.related_news.all()
+    ]
+
+    data = {
+        'id': campaign.id,
+        'title': campaign.title,
+        'description': campaign.description,
+        'start_date': campaign.start_date.strftime('%B %d, %Y'),
+        'end_date': campaign.end_date.strftime('%B %d, %Y') if campaign.end_date else None,
+        'target_audience': campaign.target_audience,
+        'category': campaign.category,
+        'category_display': campaign.get_category_display(),
+        'image': get_image_url(request, campaign.image),
+        'gallery': gallery,
+        'schedule': schedule,
+        'speakers': speakers,
+        'related_news': related_news,
+    }
+
+    return Response({'campaign': data})
+
+
+@api_view(['GET'])
+def get_press_releases(request):
+    releases = PressRelease.objects.filter(
+        is_published=True
+    ).order_by('-date_published')
+
+    data = [
+        {
+            'id': r.id,
+            'title': r.title,
+            'body': r.body,
+            'image': get_image_url(request, r.image),
+            'date_published': r.date_published.strftime('%B %d, %Y'),
+        }
+        for r in releases
+    ]
+
+    return Response({'press_releases': data})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def register_event_interest(request, event_id):
+    try:
+        event = Event.objects.get(id=event_id, is_published=True)
+    except Event.DoesNotExist:
+        return Response({'error': 'Event not found'}, status=404)
+
+    registration, created = EventRegistration.objects.get_or_create(
+        user=request.user,
+        event=event,
+    )
+
+    if created:
+        # Generate the check-in code and send it out via email/SMS the
+        # moment a new registration is created.
+        registration.check_in_code = _generate_check_in_code()
+        registration.save()
+
+        _send_check_in_code_email(request.user, event, registration.check_in_code)
+        _send_check_in_code_sms(request.user, event, registration.check_in_code)
+
+        return Response({
+            'message': 'Successfully registered interest',
+            'registered': True,
+            'check_in_code': registration.check_in_code,
+            'total_registrations': event.registrations.count(),
+        }, status=status.HTTP_201_CREATED)
+    else:
+        return Response({
+            'message': 'Already registered',
+            'registered': True,
+            'check_in_code': registration.check_in_code,
+            'total_registrations': event.registrations.count(),
+        }, status=status.HTTP_200_OK)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def unregister_event_interest(request, event_id):
+    try:
+        event = Event.objects.get(id=event_id, is_published=True)
+        registration = EventRegistration.objects.get(
+            user=request.user,
+            event=event,
+        )
+        registration.delete()
+        return Response({
+            'message': 'Registration removed',
+            'registered': False,
+            'total_registrations': event.registrations.count(),
+        }, status=status.HTTP_200_OK)
+    except Event.DoesNotExist:
+        return Response({'error': 'Event not found'}, status=404)
+    except EventRegistration.DoesNotExist:
+        return Response({'error': 'Not registered'}, status=404)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_event_registration(request, event_id):
+    try:
+        event = Event.objects.get(id=event_id, is_published=True)
+        registration = EventRegistration.objects.filter(
+            user=request.user,
+            event=event,
+        ).first()
+        return Response({
+            'registered': registration is not None,
+            'check_in_code': registration.check_in_code if registration else None,
+            'checked_in': registration.checked_in if registration else False,
+            'total_registrations': event.registrations.count(),
+        }, status=status.HTTP_200_OK)
+    except Event.DoesNotExist:
+        return Response({'error': 'Event not found'}, status=404)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_my_event_registrations(request):
+    """
+    Returns every event the current user has registered for, along with
+    their check-in code and checked-in status. Used by the mobile app's
+    "My Upcoming Events" section on Home.
+    """
+    registrations = EventRegistration.objects.filter(
+        user=request.user
+    ).select_related('event').order_by('event__event_date')
+
+    data = [
+        {
+            'event_id': r.event.id,
+            'event_title': r.event.title,
+            'event_date': r.event.event_date.strftime('%B %d, %Y'),
+            'check_in_code': r.check_in_code,
+            'checked_in': r.checked_in,
+        }
+        for r in registrations
+    ]
+
+    return Response({'registrations': data})

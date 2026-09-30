@@ -1,0 +1,28 @@
+﻿flutter/
+admin-web/node_modules/
+admin-web/dist/
+csa_backend/venv/
+csa_backend/csa_project/venv/
+csa_backend/csa_mobile_api/venv/
+csa_backend/csa_admin_api/venv/
+csa_backend/csa_mobile_api/staticfiles/
+csa_backend/csa_admin_api/staticfiles/
+__pycache__/
+*.pyc
+.env
+.django_cache/
+csa_backend/csa_admin_api/.django_cache/
+csa_backend/csa_mobile_api/.django_cache/
+db.sqlite3
+data_backup*.json
+flutter_projects/my_first_flutter/android/build/
+flutter_projects/my_first_flutter/build/
+.claude/
+csa_backend/csa_project/firebase-adminsdk.json
+csa_backend/csa_project/accounts/*.json
+# TLS material for the HTTPS launchers. ca.key can mint certificates the
+# phone app trusts, server.key is the live private key — never commit.
+# (ca.crt is public and is the copy the Flutter app bundles.)
+csa_backend/certs/*
+!csa_backend/certs/make_certs.sh
+!csa_backend/certs/ca.crt
