@@ -20,6 +20,8 @@ dependencies:
   # Keychain), NOT in shared_preferences where they sat in plaintext.
   flutter_secure_storage: ^9.2.4
   image_picker: ^1.2.1
+  # Renders a frame of a picked evidence video as the upload preview.
+  video_player: ^2.9.2
   path_provider: ^2.1.5
   firebase_core: ^4.6.0
   firebase_messaging: ^16.1.3

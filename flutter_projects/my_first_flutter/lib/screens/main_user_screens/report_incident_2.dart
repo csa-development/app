@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../services/api_service.dart';
 import '../../services/auth_storage.dart';
@@ -487,6 +488,19 @@ class _ReportIncident2ScreenState extends State<ReportIncident2Screen> {
     );
   }
 
+  static const Set<String> _videoExtensions = {
+    'mp4', 'mov', 'webm', 'mkv', 'avi', '3gp', 'm4v',
+  };
+
+  bool get _selectedIsVideo {
+    final file = _selectedFile;
+    if (file == null) return false;
+    if (file.mimeType?.startsWith('video/') ?? false) return true;
+    final path = file.path.toLowerCase();
+    final dot = path.lastIndexOf('.');
+    return dot != -1 && _videoExtensions.contains(path.substring(dot + 1));
+  }
+
   Widget _uploadBox() {
     return GestureDetector(
       onTap: _showUploadOptions,
@@ -502,14 +516,19 @@ class _ReportIncident2ScreenState extends State<ReportIncident2Screen> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.file(
-                      File(_selectedFile!.path),
-                      width: double.infinity,
-                      height: 160,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          _uploadPlaceholder(),
-                    ),
+                    child: _selectedIsVideo
+                        ? _VideoPreview(
+                            key: ValueKey(_selectedFile!.path),
+                            file: File(_selectedFile!.path),
+                          )
+                        : Image.file(
+                            File(_selectedFile!.path),
+                            width: double.infinity,
+                            height: 160,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _uploadPlaceholder(),
+                          ),
                   ),
                   Positioned(
                     top: 8,
@@ -570,6 +589,78 @@ class _ReportIncident2ScreenState extends State<ReportIncident2Screen> {
           Text(
             'Tap to upload image or video',
             style: TextStyle(color: Colors.black45, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shows the first frame of a picked video, with a play badge on top, so
+/// a chosen video fills the upload box the same way a chosen photo does.
+/// Never plays — it only needs to decode one frame. If the frame can't be
+/// decoded, the dark tile with the play badge is still shown.
+class _VideoPreview extends StatefulWidget {
+  final File file;
+
+  const _VideoPreview({super.key, required this.file});
+
+  @override
+  State<_VideoPreview> createState() => _VideoPreviewState();
+}
+
+class _VideoPreviewState extends State<_VideoPreview> {
+  late final VideoPlayerController _controller;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.file(widget.file);
+    _controller.initialize().then((_) async {
+      await _controller.seekTo(Duration.zero);
+      if (mounted) setState(() => _ready = true);
+    }).catchError((_) {});
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 160,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const ColoredBox(color: Colors.black),
+          if (_ready)
+            FittedBox(
+              fit: BoxFit.cover,
+              clipBehavior: Clip.hardEdge,
+              child: SizedBox(
+                width: _controller.value.size.width,
+                height: _controller.value.size.height,
+                child: VideoPlayer(_controller),
+              ),
+            ),
+          Center(
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 30,
+              ),
+            ),
           ),
         ],
       ),
