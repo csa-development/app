@@ -51,5 +51,26 @@
 	<string>CSA uses your camera to take a profile photo and to capture evidence when filing an incident report.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>CSA uses your photo library to let you choose a profile photo and to attach evidence when filing an incident report.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>CSA uses your microphone only if you record a video as evidence when filing an incident report.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>CSA adds events and campaigns you choose to your calendar.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>CSA adds events and campaigns you choose to your calendar.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>CSA adds events and campaigns you choose to your calendar.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>mailto</string>
+		<string>tel</string>
+		<string>sms</string>
+		<string>https</string>
+		<string>http</string>
+		<string>whatsapp</string>
+	</array>
 </dict>
 </plist>

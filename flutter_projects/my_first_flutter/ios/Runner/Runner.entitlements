@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Universal Links: lets a shared https://csa.gov.gh/news|events|campaigns|press/<id>/
+	     link open this app directly instead of Safari. Only takes effect
+	     once csa.gov.gh actually serves /.well-known/apple-app-site-association
+	     (not yet created — needs the real Apple Developer Team ID) and once
+	     this file is added to the Xcode project (see the note in
+	     the "iOS deep linking" section of wherever this was implemented). -->
+	<!-- Push notifications. Xcode swaps this to "production" automatically
+	     when archiving for TestFlight / the App Store. -->
+	<key>aps-environment</key>
+	<string>development</string>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:csa.gov.gh</string>
+	</array>
+</dict>
+</plist>

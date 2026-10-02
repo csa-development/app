@@ -45,6 +45,16 @@ class NotificationService {
       print('Notification permission granted');
     }
 
+    // iOS only (no-op on Android): without this, iOS silently drops a
+    // push that arrives while the app is open. The OS itself shows it
+    // (see the `apns` block in the backend's push.py), so the app does
+    // not build a second local notification for it on iOS.
+    await _messaging.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
     await _ensureLocalNotificationsInitialized();
 
     // ===== Get FCM token =====
@@ -53,7 +63,7 @@ class NotificationService {
     // (first install, or logging back in after being signed out),
     // syncTokenWithBackend() below is called right after sign-in
     // succeeds instead.
-    String? token = await _messaging.getToken();
+    String? token = await _getFcmToken();
     if (token != null) {
       print('FCM Token: $token');
       await _saveTokenToBackend(token);
@@ -90,8 +100,17 @@ class NotificationService {
 
     const AndroidInitializationSettings androidInit =
         AndroidInitializationSettings(_smallIconName);
+    // Required on iOS — the plugin throws at initialize() if it's
+    // missing. Permission is already requested through Firebase above,
+    // so it is deliberately not asked for a second time here.
+    const DarwinInitializationSettings iosInit = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
     const InitializationSettings initSettings = InitializationSettings(
       android: androidInit,
+      iOS: iosInit,
     );
     await _localNotifications.initialize(settings: initSettings);
     _localNotificationsInitialized = true;
@@ -104,6 +123,10 @@ class NotificationService {
   /// messages (main.dart's background handler) so every push looks
   /// the same regardless of app state.
   static Future<void> showCsaNotification(RemoteMessage message) async {
+    // On iOS the OS displays the push itself (alert in the backend's
+    // `apns` block); building one here too would show it twice.
+    if (defaultTargetPlatform == TargetPlatform.iOS) return;
+
     await _ensureLocalNotificationsInitialized();
 
     final title = message.data['title'] ?? 'CSA Ghana';
@@ -148,8 +171,28 @@ class NotificationService {
     }
   }
 
+  /// On iOS the FCM token only exists once Apple has handed the app its
+  /// APNs token, which can take a moment after launch — asking for it
+  /// too early throws. [waitForApns] polls briefly for it; startup
+  /// passes false so launching never stalls, and relies on
+  /// onTokenRefresh (above) to deliver the token when it appears.
+  static Future<String?> _getFcmToken({bool waitForApns = false}) async {
+    try {
+      if (defaultTargetPlatform == TargetPlatform.iOS && waitForApns) {
+        for (var i = 0; i < 5; i++) {
+          if (await _messaging.getAPNSToken() != null) break;
+          await Future.delayed(const Duration(seconds: 1));
+        }
+      }
+      return await _messaging.getToken();
+    } catch (e) {
+      print('Could not get FCM token yet: $e');
+      return null;
+    }
+  }
+
   static Future<String?> getToken() async {
-    return await _messaging.getToken();
+    return await _getFcmToken(waitForApns: true);
   }
 
   /// Call this right after a successful login/registration (once
@@ -161,7 +204,7 @@ class NotificationService {
   /// access token to save it against, without re-requesting
   /// permission or re-registering the listeners set up in initialize().
   static Future<void> syncTokenWithBackend() async {
-    final token = await _messaging.getToken();
+    final token = await _getFcmToken(waitForApns: true);
     if (token != null) {
       await _saveTokenToBackend(token);
     }

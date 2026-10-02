@@ -53,12 +53,25 @@ def send_push_to_token(token, title, body, access_token=None):
         # which is what lets us set the real CSA logo as the large icon
         # and the star as the small icon. `data` values must all be
         # strings, which title/body already are.
+        # The `apns` block is read only by iPhones and ignored by
+        # Android. iOS can't build its own notification from a data-only
+        # push the way the Android code does (it isn't allowed to run
+        # when the app is in the background or closed), so on iOS the
+        # alert has to come from this block and Apple displays it.
         payload = {
             'message': {
                 'token': token,
                 'data': {
                     'title': title,
                     'body': body,
+                },
+                'apns': {
+                    'payload': {
+                        'aps': {
+                            'alert': {'title': title, 'body': body},
+                            'sound': 'default',
+                        },
+                    },
                 },
             }
         }
