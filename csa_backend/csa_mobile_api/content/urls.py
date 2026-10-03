@@ -2,12 +2,15 @@ from django.urls import path
 
 from .views import (
     get_news,
+    get_news_detail,
     get_alerts,
     get_breaking_news,
     get_events,
+    get_event_detail,
     get_campaigns,
     get_campaign_detail,
     get_press_releases,
+    get_press_release_detail,
     register_event_interest,
     unregister_event_interest,
     check_event_registration,
@@ -22,11 +25,17 @@ from .views import (
 
 urlpatterns = [
     path('news/', get_news, name='get_news'),
+    path('news/<int:news_id>/', get_news_detail, name='get_news_detail'),
     path('alerts/', get_alerts, name='get_alerts'),
     path(
         'breaking-news/', get_breaking_news, name='get_breaking_news'
     ),
     path('events/', get_events, name='get_events'),
+    path(
+        'events/<int:event_id>/',
+        get_event_detail,
+        name='get_event_detail',
+    ),
     path('campaigns/', get_campaigns, name='get_campaigns'),
     path(
         'campaigns/<int:campaign_id>/',
@@ -35,6 +44,11 @@ urlpatterns = [
     ),
     path(
         'press-releases/', get_press_releases, name='get_press_releases'
+    ),
+    path(
+        'press-releases/<int:release_id>/',
+        get_press_release_detail,
+        name='get_press_release_detail',
     ),
     path(
         'events/<int:event_id>/register/',

@@ -238,15 +238,6 @@ class ReportDetailPage extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isActive ? color : const Color(0xFFEEEEEE),
-              boxShadow: isCurrent
-                  ? [
-                      BoxShadow(
-                        color: color.withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        spreadRadius: 2,
-                      ),
-                    ]
-                  : null,
             ),
             child: Center(
               child: isDone

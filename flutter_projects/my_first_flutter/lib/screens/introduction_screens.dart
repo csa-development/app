@@ -31,7 +31,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     _IntroData(
       image: 'assets/children_final.png',
       text:
-          'Report Cyber Incidents and Participate in CSA Programs and Campaigns',
+          'Report Cyber Incidents and Participate in CSA Programs and Campaigns.',
     ),
   ];
 

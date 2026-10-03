@@ -2,6 +2,47 @@ import 'package:flutter/material.dart';
 
 import '../../../widgets/swipe_back.dart';
 
+// Words people use when they mean "price", so a search for any of them finds
+// the fee cards even when the card itself says something else (e.g. "GHS").
+// Stored on the pricing FAQs under the hidden key 'k'.
+const String _priceWords =
+    'fee fees price prices pricing cost costs how much pay payment payable '
+    'charge charges amount rate rates cedi cedis ghs ghc gh₵ annual yearly '
+    'per year money';
+
+const Set<String> _ignoredSearchWords = {
+  'a', 'an', 'the', 'of', 'is', 'are', 'to', 'for', 'in', 'on', 'and', 'or',
+  'what', 'does', 'do', 'my', 'me', 'i', 'it', 'be', 'can', 'there',
+};
+
+// Lowercase, and "5,000" == "5000" so either way of typing a fee finds it.
+String _normalise(String text) => text.toLowerCase().replaceAll(',', '');
+
+/// Every typed word has to appear somewhere in the question, answer or hidden
+/// search words (order doesn't matter), so "tier 1 fee" or "how much" work.
+@visibleForTesting
+bool faqMatches(Map<String, String> faq, String query) {
+  final words = _normalise(query)
+      .split(RegExp(r'\s+'))
+      .where((w) => w.isNotEmpty)
+      .toList();
+  if (words.isEmpty) return true;
+
+  // Don't let filler words ("what is the…") rule everything out — unless
+  // that is all that was typed.
+  final meaningful = words.where((w) => !_ignoredSearchWords.contains(w)).toList();
+  final needed = meaningful.isEmpty ? words : meaningful;
+
+  final haystack = _normalise('${faq['q']} ${faq['a']} ${faq['k'] ?? ''}');
+  // A plural also finds the singular ("providers" finds "Provider").
+  bool found(String word) =>
+      haystack.contains(word) ||
+      (word.length > 3 &&
+          word.endsWith('s') &&
+          haystack.contains(word.substring(0, word.length - 1)));
+  return needed.every(found);
+}
+
 class faqli extends StatefulWidget {
   const faqli({super.key});
 
@@ -23,12 +64,7 @@ class _faqliState extends State<faqli> {
     super.dispose();
   }
 
-  bool _matches(Map<String, String> faq) {
-    if (_searchQuery.isEmpty) return true;
-    final query = _searchQuery.toLowerCase();
-    return faq['q']!.toLowerCase().contains(query) ||
-        faq['a']!.toLowerCase().contains(query);
-  }
+  bool _matches(Map<String, String> faq) => faqMatches(faq, _searchQuery);
 
   @override
   Widget build(BuildContext context) {
@@ -242,6 +278,31 @@ class _faqliState extends State<faqli> {
 }
 
 const List<Map<String, String>> _cspFaqs = [
+  // ===== Fees come first =====
+  {
+    'q': 'How much does a CSP licence cost?',
+    'a':
+        'The annual licence fee for a Cybersecurity Service Provider depends on its tier:\n\n'
+        '• Tier 1: GHS 20,000 per year\n'
+        '• Tier 2: GHS 15,000 per year\n'
+        '• Tier 3: GHS 10,000 per year',
+    'k': _priceWords,
+  },
+  {
+    'q': 'What is the licence fee for a Tier 1 Service Provider?',
+    'a': 'The licence fee for a Tier 1 Cybersecurity Service Provider is GHS 20,000 per year.',
+    'k': _priceWords,
+  },
+  {
+    'q': 'What is the licence fee for a Tier 2 Service Provider?',
+    'a': 'The licence fee for a Tier 2 Cybersecurity Service Provider is GHS 15,000 per year.',
+    'k': _priceWords,
+  },
+  {
+    'q': 'What is the licence fee for a Tier 3 Service Provider?',
+    'a': 'The licence fee for a Tier 3 Cybersecurity Service Provider is GHS 10,000 per year.',
+    'k': _priceWords,
+  },
   {
     'q': 'Who is a Cybersecurity Service Provider (CSP)?',
     'a':
@@ -285,6 +346,13 @@ const List<Map<String, String>> _cspFaqs = [
 ];
 
 const List<Map<String, String>> _ceFaqs = [
+  // ===== Fees come first =====
+  {
+    'q': 'How much does CE accreditation cost?',
+    'a':
+        'The accreditation fee for a Cybersecurity Establishment (CE) is GHS 5,000 per year.',
+    'k': _priceWords,
+  },
   {
     'q': 'What is a Cybersecurity Establishment (CE)?',
     'a':
@@ -318,6 +386,37 @@ const List<Map<String, String>> _ceFaqs = [
 ];
 
 const List<Map<String, String>> _cpFaqs = [
+  // ===== Fees come first =====
+  {
+    'q': 'How much does CP accreditation cost?',
+    'a':
+        'The annual accreditation fee for a Cybersecurity Professional depends on the tier:\n\n'
+        '• Tier 1: GHS 5,000 per year\n'
+        '• Tier 2: GHS 3,000 per year\n'
+        '• Tier 3: GHS 2,000 per year\n'
+        '• Generals: GHS 500 per year',
+    'k': _priceWords,
+  },
+  {
+    'q': 'What is the accreditation fee for a Tier 1 Professional?',
+    'a': 'The accreditation fee for a Tier 1 Cybersecurity Professional is GHS 5,000 per year.',
+    'k': _priceWords,
+  },
+  {
+    'q': 'What is the accreditation fee for a Tier 2 Professional?',
+    'a': 'The accreditation fee for a Tier 2 Cybersecurity Professional is GHS 3,000 per year.',
+    'k': _priceWords,
+  },
+  {
+    'q': 'What is the accreditation fee for a Tier 3 Professional?',
+    'a': 'The accreditation fee for a Tier 3 Cybersecurity Professional is GHS 2,000 per year.',
+    'k': _priceWords,
+  },
+  {
+    'q': 'What is the accreditation fee for a General Professional?',
+    'a': 'The accreditation fee for a General (Generals) Cybersecurity Professional is GHS 500 per year.',
+    'k': _priceWords,
+  },
   {
     'q': 'Who is a Cybersecurity Professional (CP)?',
     'a':

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'registration_screen.dart';
 import 'registration_screen_2.dart';
+import '../widgets/top_toast.dart';
 
 class RegistrationFlow extends StatefulWidget {
   const RegistrationFlow({super.key});
@@ -149,145 +150,9 @@ class _RegistrationFlowState extends State<RegistrationFlow> {
 // SHARED TOP TOAST
 // ============================================================
 
-class RegistrationTopToast extends StatefulWidget {
-  final String message;
-  final VoidCallback onDismiss;
-
-  const RegistrationTopToast({
-    super.key,
-    required this.message,
-    required this.onDismiss,
-  });
-
-  @override
-  State<RegistrationTopToast> createState() =>
-      _RegistrationTopToastState();
-}
-
-class _RegistrationTopToastState
-    extends State<RegistrationTopToast>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 250),
-    );
-
-    _slide = Tween<Offset>(
-      begin: const Offset(0, -1),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOut,
-      ),
-    );
-
-    _controller.forward();
-
-    Future.delayed(
-      const Duration(milliseconds: 2500),
-      () async {
-        if (!mounted) return;
-
-        await _controller.reverse();
-
-        widget.onDismiss();
-      },
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: SafeArea(
-        child: SlideTransition(
-          position: _slide,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color:
-                          Colors.black.withValues(alpha: 0.15),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-
-                    const SizedBox(width: 10),
-
-                    Expanded(
-                      child: Text(
-                        widget.message,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 void showRegistrationTopError(
   BuildContext context,
   String message,
 ) {
-  final overlay = Overlay.of(context);
-
-  late OverlayEntry entry;
-
-  entry = OverlayEntry(
-    builder: (_) => RegistrationTopToast(
-      message: message,
-      onDismiss: () => entry.remove(),
-    ),
-  );
-
-  overlay.insert(entry);
+  showTopToast(context, message);
 }

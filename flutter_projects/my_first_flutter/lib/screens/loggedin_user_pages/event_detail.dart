@@ -1,4 +1,5 @@
 import 'package:add_2_calendar/add_2_calendar.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:share_plus/share_plus.dart';
@@ -7,7 +8,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_storage.dart';
 import '../../services/bookmark_service.dart';
+import '../../widgets/registered_pill.dart';
 import '../../widgets/swipe_back.dart';
+import '../../utils/event_status.dart';
 import '../../widgets/top_toast.dart';
 
 class EventDetailPage extends StatefulWidget {
@@ -30,6 +33,11 @@ class _EventDetailPageState extends State<EventDetailPage> {
   bool _isRegistering = false;
   bool _isCheckingRegistration = true;
 
+  // True once the event is over: registering, unregistering and adding it
+  // to a calendar are switched off. Starts from the data this page was
+  // opened with; the server's answer (below) can only confirm or tighten it.
+  late bool _hasEnded;
+
   // ===== Check-in code state =====
   String? _checkInCode;
   bool _checkedIn = false;
@@ -46,6 +54,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
   @override
   void initState() {
     super.initState();
+    // Campaigns can be opened on this page too (guest browsing flow).
+    _hasEnded = widget.isCampaign
+        ? campaignHasEnded(widget.event)
+        : eventHasEnded(widget.event);
     _checkRegistration();
     _checkLoginState();
   }
@@ -81,7 +93,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
   void _shareEvent() {
     final String title = widget.event['title'] ?? '';
-    Share.share('$title\n\nFind out more on the CSA App');
+    final id = widget.event['id'];
+    final path = widget.isCampaign ? 'campaigns' : 'events';
+    Share.share('$title\n\n${ApiService.publicWebBaseUrl}/$path/$id/');
   }
 
   Future<void> _checkRegistration() async {
@@ -107,6 +121,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
         _interested = result['data']['registered'] ?? false;
         _checkInCode = result['data']['check_in_code'];
         _checkedIn = result['data']['checked_in'] ?? false;
+        if (result['data']['has_ended'] == true) _hasEnded = true;
       });
     }
 
@@ -114,6 +129,11 @@ class _EventDetailPageState extends State<EventDetailPage> {
   }
 
   Future<void> _toggleRegistration() async {
+    if (_hasEnded) {
+      showTopToast(context, 'This event has ended');
+      return;
+    }
+
     final accessToken = await AuthStorage.getAccessToken();
     if (accessToken == null) {
       showTopToast(context, 'Please login to register interest');
@@ -387,6 +407,16 @@ class _EventDetailPageState extends State<EventDetailPage> {
   }
 
   void _addToCalendar() {
+    if (kIsWeb) {
+      showTopToast(
+        context,
+        'Adding to your calendar is only available in the mobile app',
+        isError: false,
+        backgroundColor: Colors.black54,
+        icon: Icons.info_outline,
+      );
+      return;
+    }
     final title = widget.event['title'] ?? '';
     final description = widget.event['description'] ?? '';
     final location = widget.event['location'] ?? '';
@@ -520,7 +550,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           Positioned(
                             right: 12,
                             bottom: 12,
-                            child: _registeredPill(),
+                            child: RegisteredPill(checkedIn: _checkedIn),
                           ),
                       ],
                     )
@@ -715,12 +745,15 @@ class _EventDetailPageState extends State<EventDetailPage> {
           style: ElevatedButton.styleFrom(
             backgroundColor: primaryBlue,
             foregroundColor: Colors.white,
-            elevation: 3,
+            disabledBackgroundColor: Colors.grey.shade300,
+            disabledForegroundColor: Colors.grey.shade600,
+            elevation: _hasEnded ? 0 : 3,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(6),
             ),
           ),
-          onPressed: _isRegistering ? null : _toggleRegistration,
+          onPressed:
+              (_isRegistering || _hasEnded) ? null : _toggleRegistration,
           child: _isRegistering
               ? const SizedBox(
                   height: 20,
@@ -731,7 +764,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   ),
                 )
               : Text(
-                  _interested ? 'UNREGISTER' : 'REGISTER FOR EVENT',
+                  _hasEnded
+                      ? 'EVENT HAS ENDED'
+                      : (_interested ? 'UNREGISTER' : 'REGISTER FOR EVENT'),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -763,42 +798,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
     );
   }
 
-  Widget _registeredPill() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(50),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _checkedIn ? Icons.verified : Icons.check_circle,
-            size: 14,
-            color: Colors.green.shade600,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            _checkedIn ? 'Checked In' : 'Registered',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // One card holding every event fact — location, date/time, and the
   // Add to Calendar action — instead of separate cards per row. Icons
   // and text are plain black/grey throughout, no navy tint.
@@ -812,13 +811,21 @@ class _EventDetailPageState extends State<EventDetailPage> {
   }) {
     final List<Widget> rows = [];
 
-    rows.add(_infoRow(
-      icon: Icons.event_available,
-      label: 'Add to Calendar',
-      value: null,
-      onTap: _addToCalendar,
-      isAction: true,
-    ));
+    if (_hasEnded) {
+      rows.add(_infoRow(
+        icon: Icons.event_busy,
+        label: 'Status',
+        value: 'This event has ended',
+      ));
+    } else {
+      rows.add(_infoRow(
+        icon: Icons.event_available,
+        label: 'Add to Calendar',
+        value: null,
+        onTap: _addToCalendar,
+        isAction: true,
+      ));
+    }
 
     if (location.isNotEmpty) {
       rows.add(_infoRow(

@@ -117,24 +117,6 @@ class ApplyLicensePage extends StatelessWidget {
               onTap: _openPortal,
             ),
 
-            const SizedBox(height: 12),
-
-            // ===== Critical Information Infrastructure =====
-            _categoryCard(
-              context,
-              title: 'Critical Information Infrastructure',
-              subtitle: 'CII',
-              description:
-                  'Entities designated by the Cyber Security Authority as owners of Critical Information Infrastructure (CII) under Act 1038, required to register and comply with prescribed cybersecurity standards.',
-              requirements: [
-                'Certificate of Incorporation',
-                'CSA designation notice',
-                'Cybersecurity policy and risk assessment',
-                'Incident reporting procedures',
-              ],
-              onTap: _openPortal,
-            ),
-
             const SizedBox(height: 28),
 
             // ===== Note =====
@@ -149,7 +131,7 @@ class ApplyLicensePage extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
-                  Icon(Icons.info_outline, size: 18, color: Colors.black38),
+                  Icon(Icons.info_outline, size: 18, color: Colors.red),
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(

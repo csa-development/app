@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,7 +6,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../main.dart'; // provides `routeObserver`
 import '../../services/api_service.dart';
 import '../../services/auth_storage.dart';
+import '../../widgets/local_image.dart';
 import '../../widgets/profile_image_picker.dart';
+import '../../widgets/quick_action_tile.dart';
 import '../../widgets/swipe_back.dart';
 import '../../widgets/top_toast.dart';
 import '../main_user_screens/about_csa.dart';
@@ -39,6 +39,10 @@ class _LoggedInHomeState extends State<LoggedInHome> with RouteAware {
   String _searchQuery = '';
   bool _isInitialLoad = true;
   bool _hasError = false;
+  // The specific reason the last load failed (offline / slow / CSA's
+  // side), when ApiService could tell — shown in the banner instead of a
+  // generic line. Null falls back to the generic text.
+  String? _loadErrorMessage;
 
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
@@ -279,6 +283,9 @@ class _LoggedInHomeState extends State<LoggedInHome> with RouteAware {
     setState(() {
       _isInitialLoad = false;
       _hasError = !newsOk && !alertsOk;
+      _loadErrorMessage = _hasError && newsResult['kind'] != null
+          ? newsResult['error'] as String
+          : null;
     });
   }
 
@@ -542,8 +549,8 @@ class _LoggedInHomeState extends State<LoggedInHome> with RouteAware {
                             valueListenable: AuthStorage.profileImageNotifier,
                             builder: (context, path, _) {
                               return path != null
-                                  ? Image.file(
-                                      File(path),
+                                  ? localImage(
+                                      path,
                                       fit: BoxFit.cover,
                                       width: 46,
                                       height: 46,
@@ -736,12 +743,30 @@ class _LoggedInHomeState extends State<LoggedInHome> with RouteAware {
                       Icon(Icons.wifi_off_outlined,
                           size: 18, color: Colors.red.shade600),
                       const SizedBox(width: 10),
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          'Couldn\'t load the latest updates. Pull down to try again.',
-                          style: TextStyle(
+                          _loadErrorMessage ??
+                              "Couldn't load the latest updates.",
+                          style: const TextStyle(
                             fontSize: 12,
                             color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: () => _loadContent(initial: true),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red.shade700,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: const Size(0, 32),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text(
+                          'Try again',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
@@ -776,19 +801,19 @@ class _LoggedInHomeState extends State<LoggedInHome> with RouteAware {
                                 fontSize: 12,
                               ),
                             ),
-                            SizedBox(height: 2),
-                            Text(
-                              '292',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                            SizedBox(height: 6),
+                            Icon(Icons.phone, color: Colors.white, size: 28),
                           ],
                         ),
                       ),
-                      Icon(Icons.phone, color: Colors.white, size: 28),
+                      Text(
+                        '292',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -807,10 +832,10 @@ class _LoggedInHomeState extends State<LoggedInHome> with RouteAware {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: _quickAction(
-                      Icons.report_outlined,
-                      'Report\nIncident',
-                      () => Navigator.push(
+                    child: QuickActionTile(
+                      icon: Icons.report_outlined,
+                      label: 'Report\nIncident',
+                      onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => const ReportIncidentScreen(),
@@ -819,10 +844,10 @@ class _LoggedInHomeState extends State<LoggedInHome> with RouteAware {
                     ),
                   ),
                   Expanded(
-                    child: _quickAction(
-                      Icons.campaign_outlined,
-                      'Events &\nCampaigns',
-                      () => Navigator.push(
+                    child: QuickActionTile(
+                      icon: Icons.campaign_outlined,
+                      label: 'Events &\nCampaigns',
+                      onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => const LoggedInEventsCampaigns(),
@@ -831,10 +856,10 @@ class _LoggedInHomeState extends State<LoggedInHome> with RouteAware {
                     ),
                   ),
                   Expanded(
-                    child: _quickAction(
-                      Icons.phone_outlined,
-                      'Contact\nCSA',
-                      () => Navigator.push(
+                    child: QuickActionTile(
+                      icon: Icons.phone_outlined,
+                      label: 'Contact\nCSA',
+                      onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => const LoggedInContactCsa(),
@@ -843,10 +868,10 @@ class _LoggedInHomeState extends State<LoggedInHome> with RouteAware {
                     ),
                   ),
                   Expanded(
-                    child: _quickAction(
-                      Icons.newspaper_outlined,
-                      'News &\nAdvisories',
-                      () => Navigator.push(
+                    child: QuickActionTile(
+                      icon: Icons.newspaper_outlined,
+                      label: 'News &\nAdvisories',
+                      onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => const LoggedInNews(),
@@ -1289,39 +1314,6 @@ class _LoggedInHomeState extends State<LoggedInHome> with RouteAware {
       decoration: BoxDecoration(
         color: Colors.grey.shade200,
         borderRadius: BorderRadius.circular(radius),
-      ),
-    );
-  }
-
-  Widget _quickAction(IconData icon, String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F6F9),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
-              boxShadow: [
-                BoxShadow(
-                  color: primaryBlue.withValues(alpha: 0.18),
-                  blurRadius: 12,
-                  spreadRadius: 0.5,
-                ),
-              ],
-            ),
-            child: Center(child: Icon(icon, color: Colors.black, size: 24)),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-          ),
-        ],
       ),
     );
   }

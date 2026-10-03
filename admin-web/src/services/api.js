@@ -1,23 +1,37 @@
 import { API_BASE_URL } from '../config';
 
-const ACCESS_TOKEN_KEY = 'csa_admin_access_token';
 const ADMIN_KEY = 'csa_admin_profile';
+const LEGACY_TOKEN_KEY = 'csa_admin_access_token';
+
+// Fired when the server no longer accepts the session, so the app can drop
+// back to the login page from anywhere.
+export const SESSION_EXPIRED_EVENT = 'csa-admin-session-expired';
+
+// The login tokens used to be kept in localStorage, readable by any script
+// on the page. They now live in HttpOnly cookies the browser manages by
+// itself, so JavaScript never sees them. Purge any copy left from before.
+try {
+  window.localStorage.removeItem(LEGACY_TOKEN_KEY);
+} catch {
+  // storage unavailable - nothing to purge
+}
 
 function buildUrl(path) {
   return `${API_BASE_URL}${path}`;
 }
 
-function getToken() {
-  return window.localStorage.getItem(ACCESS_TOKEN_KEY);
-}
-
+// Only the non-secret profile (name, roles) is kept, to draw the right menu
+// before the first request. The server enforces permissions on its own.
 export function getStoredAdmin() {
-  const raw = window.localStorage.getItem(ADMIN_KEY);
-  return raw ? JSON.parse(raw) : null;
+  try {
+    const raw = window.localStorage.getItem(ADMIN_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function clearAdminSession() {
-  window.localStorage.removeItem(ACCESS_TOKEN_KEY);
   window.localStorage.removeItem(ADMIN_KEY);
 }
 
@@ -29,19 +43,56 @@ async function parseResponse(response) {
   return data;
 }
 
-async function request(path, options = {}) {
-  const headers = new Headers(options.headers || {});
-  const token = getToken();
+// Marks every request as coming from this app. Together with SameSite
+// cookies this is what stops another website from making a signed-in
+// staff member's browser change data (cross-site request forgery).
+const REQUEST_HEADERS = { 'X-CSA-Admin': '1' };
+const AUTH_PATHS = ['/api/admin/login/', '/api/admin/refresh/', '/api/admin/logout/'];
 
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+let refreshInFlight = null;
+
+function refreshSession() {
+  if (!refreshInFlight) {
+    refreshInFlight = fetch(buildUrl('/api/admin/refresh/'), {
+      method: 'POST',
+      headers: REQUEST_HEADERS,
+      credentials: 'same-origin'
+    })
+      .then((response) => response.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+  return refreshInFlight;
+}
+
+// fetch() plus: the safety header, and one silent session refresh when the
+// short-lived access cookie has expired.
+async function apiFetch(path, options = {}) {
+  const send = () => {
+    const headers = new Headers(options.headers || {});
+    Object.entries(REQUEST_HEADERS).forEach(([key, value]) => headers.set(key, value));
+    return fetch(buildUrl(path), { ...options, headers, credentials: 'same-origin' });
+  };
+
+  let response = await send();
+
+  if (response.status === 401 && !AUTH_PATHS.includes(path)) {
+    if (await refreshSession()) {
+      response = await send();
+    }
+    if (response.status === 401) {
+      clearAdminSession();
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    }
   }
 
-  const response = await fetch(buildUrl(path), {
-    ...options,
-    headers
-  });
+  return response;
+}
 
+async function request(path, options = {}) {
+  const response = await apiFetch(path, options);
   return parseResponse(response);
 }
 
@@ -71,9 +122,17 @@ export async function loginAdmin(credentials) {
     body: JSON.stringify(credentials)
   });
 
-  window.localStorage.setItem(ACCESS_TOKEN_KEY, data.access);
   window.localStorage.setItem(ADMIN_KEY, JSON.stringify(data.admin));
   return data;
+}
+
+export async function logoutAdmin() {
+  try {
+    await apiFetch('/api/admin/logout/', { method: 'POST' });
+  } catch {
+    // offline - the cookies expire on their own
+  }
+  clearAdminSession();
 }
 
 export async function getDashboardSummary() {
@@ -214,10 +273,8 @@ export async function updateAdminNews(id, payload) {
 }
 
 export async function deleteAdminNews(id) {
-  const url = buildUrl(`/api/content/admin/news/${id}/`);
-  const response = await fetch(url, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${getToken()}` }
+  const response = await apiFetch(`/api/content/admin/news/${id}/`, {
+    method: 'DELETE'
   });
 
   if (!response.ok && response.status !== 204) {
@@ -248,9 +305,8 @@ async function updateItem(path, payload) {
 }
 
 async function deleteItem(path) {
-  const response = await fetch(buildUrl(path), {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${getToken()}` }
+  const response = await apiFetch(path, {
+    method: 'DELETE'
   });
 
   if (!response.ok && response.status !== 204) {

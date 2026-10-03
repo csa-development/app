@@ -4,6 +4,7 @@ import '../loggedin_user_pages/events_campaigns.dart';
 import '../loggedin_user_pages/contact_csa.dart';
 import '../main_user_screens/about_csa.dart';
 import '../main_user_screens/csa_units.dart';
+import '../main_user_screens/cybersecurity_act.dart';
 
 class LoggedInMore extends StatelessWidget {
   const LoggedInMore({super.key});
@@ -41,7 +42,7 @@ class LoggedInMore extends StatelessWidget {
 
               _sectionLabel('CSA Services'),
               const SizedBox(height: 12),
-              _sectionCard(
+              _tileGroup(
                 context,
                 items: [
                   _TileItem(
@@ -61,13 +62,18 @@ class LoggedInMore extends StatelessWidget {
 
               _sectionLabel('Information'),
               const SizedBox(height: 12),
-              _sectionCard(
+              _tileGroup(
                 context,
                 items: [
                   _TileItem(
                     icon: Icons.info_outline,
                     title: 'About CSA',
                     destination: const AboutCsa(),
+                  ),
+                  _TileItem(
+                    icon: Icons.balance_outlined,
+                    title: 'Cybersecurity Act, 2020 (Act 1038)',
+                    destination: const CybersecurityActScreen(),
                   ),
                 ],
               ),
@@ -76,7 +82,7 @@ class LoggedInMore extends StatelessWidget {
 
               _sectionLabel('Connect'),
               const SizedBox(height: 12),
-              _sectionCard(
+              _tileGroup(
                 context,
                 items: [
                   _TileItem(
@@ -107,70 +113,63 @@ class LoggedInMore extends StatelessWidget {
     );
   }
 
-  Widget _sectionCard(BuildContext context, {required List<_TileItem> items}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: tileBg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: List.generate(items.length, (index) {
-          final item = items[index];
-          final isLast = index == items.length - 1;
-          return _buildTile(context, item, isLast);
-        }),
-      ),
+  // Every item is its own card with a gap between them, rather than
+  // several items sharing one card behind a divider.
+  Widget _tileGroup(BuildContext context, {required List<_TileItem> items}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) const SizedBox(height: 12),
+          _buildTile(context, items[i]),
+        ],
+      ],
     );
   }
 
-  Widget _buildTile(BuildContext context, _TileItem item, bool isLast) {
+  Widget _buildTile(BuildContext context, _TileItem item) {
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => item.destination),
       ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: primaryBlue,
-                    borderRadius: BorderRadius.circular(10),
+      child: Container(
+        decoration: BoxDecoration(
+          color: tileBg,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: primaryBlue,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(item.icon, size: 20, color: Colors.white),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  item.title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
                   ),
-                  child: Icon(item.icon, size: 20, color: Colors.white),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    item.title,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  color: Colors.black26,
-                  size: 20,
-                ),
-              ],
-            ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: Colors.black26,
+                size: 20,
+              ),
+            ],
           ),
-          if (!isLast)
-            Divider(
-              height: 1,
-              thickness: 1,
-              color: Colors.grey.shade200,
-              indent: 72,
-            ),
-        ],
+        ),
       ),
     );
   }

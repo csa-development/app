@@ -54,7 +54,7 @@ def send_sms_otp(phone, otp, message=None):
         print('RANCARD_SMS_API_KEY not set — SMS OTP disabled, falling back to email.', flush=True)
         return False
     if message is None:
-        message = f'Your CSA login OTP is: {otp}. It expires in 10 minutes. Do not share this code.'
+        message = f'Your CSA login OTP is: {otp}. It expires in 2 minutes. Do not share this code.'
 
     if phone.startswith('0'):
         phone = '233' + phone[1:]
@@ -202,6 +202,22 @@ def register_user(request):
     }, status=201)
 
 
+# At most one login code per account per this many seconds. The app only
+# lets a person ask for another code after the current one has expired (2
+# minutes), so this never gets in the way of normal use — it stops repeated
+# taps, duplicate requests and any stray call from flooding an inbox or
+# racking up SMS costs.
+OTP_COOLDOWN_SECONDS = 30
+
+
+def _mask_identifier(identifier):
+    """Enough to recognise an account in a log without exposing it."""
+    if '@' in identifier:
+        name, _, domain = identifier.partition('@')
+        return f"{name[:1]}***@{domain}"
+    return f"***{identifier[-3:]}"
+
+
 @csrf_exempt
 # 8 per 10 min per IP — enough headroom for "didn't get it, resend" and
 # for several people behind one office NAT, still a hard cap on OTP spam
@@ -225,6 +241,17 @@ def request_otp(request):
     if not identifier or not method:
         return JsonResponse(
             {"error": "Identifier and method are required"}, status=400)
+
+    # Audit trail: every code request is logged with its source, so an
+    # unexpected one can be traced to the exact app, browser or address.
+    print(
+        f"OTP requested: at={timezone.now().isoformat(timespec='seconds')} "
+        f"method={method} id={_mask_identifier(identifier)} "
+        f"ip={request.META.get('REMOTE_ADDR', '-')} "
+        f"origin={request.headers.get('Origin', '-')} "
+        f"ua={request.headers.get('User-Agent', '-')[:70]}",
+        flush=True,
+    )
 
     try:
         if method == "email":
@@ -261,6 +288,14 @@ def request_otp(request):
         print(f'OTP lookup error: {e}')
         return JsonResponse({"error": "An error occurred"}, status=500)
 
+    cooldown_key = f"otpsent:{user.pk}"
+    if not cache.add(cooldown_key, True, OTP_COOLDOWN_SECONDS):
+        return JsonResponse(
+            {"error": "A code was just sent. Please wait a moment before "
+                      "asking for another."},
+            status=429,
+        )
+
     code = str(random.randint(100000, 999999))
 
     # Invalidate any previously issued, still-unused codes for this
@@ -278,7 +313,7 @@ def request_otp(request):
         user=user,
         purpose="LOGIN",
         code=code,
-        expires_at=timezone.now() + timedelta(minutes=10)
+        expires_at=timezone.now() + timedelta(minutes=2)
     )
 
     if method == "phone":
@@ -299,7 +334,7 @@ def request_otp(request):
             # find their code, no error, nothing to explain why.
             email_sent = send_email_otp(
                 subject='Your CSA Login OTP',
-                message=f'Your One Time Password (OTP) for CSA is: {code}\n\nThis OTP expires in 10 minutes.\n\nDo not share this code with anyone.',
+                message=f'Your One Time Password (OTP) for CSA is: {code}\n\nThis OTP expires in 2 minutes.\n\nDo not share this code with anyone.',
                 recipient_list=[user.email],
             )
             delivered_via = "email" if email_sent else None
@@ -307,6 +342,7 @@ def request_otp(request):
         if delivered_via is None:
             # Both SMS and the email fallback failed — say so rather
             # than a false "sent" the user has no way to act on.
+            cache.delete(cooldown_key)
             return JsonResponse(
                 {"error": "Could not send a verification code right now. Please try again shortly."},
                 status=502,
@@ -321,7 +357,7 @@ def request_otp(request):
     else:
         email_sent = send_email_otp(
             subject='Your CSA Login OTP',
-            message=f'Your One Time Password (OTP) for CSA is: {code}\n\nThis OTP expires in 10 minutes.\n\nDo not share this code with anyone.',
+            message=f'Your One Time Password (OTP) for CSA is: {code}\n\nThis OTP expires in 2 minutes.\n\nDo not share this code with anyone.',
             recipient_list=[user.email],
         )
 
@@ -329,6 +365,7 @@ def request_otp(request):
             # Previously this branch reported success unconditionally
             # regardless of whether the email actually sent — exactly
             # the silent-failure shape of "I never received anything."
+            cache.delete(cooldown_key)
             return JsonResponse(
                 {"error": "Could not send a verification code right now. Please try again shortly."},
                 status=502,
@@ -528,7 +565,7 @@ def request_phone_change(request):
         purpose='PHONE_CHANGE',
         code=code,
         pending_value=new_phone,
-        expires_at=timezone.now() + timedelta(minutes=10),
+        expires_at=timezone.now() + timedelta(minutes=2),
     )
 
     sms_sent = send_sms_otp(
@@ -536,7 +573,7 @@ def request_phone_change(request):
         code,
         message=(
             f'Your CSA verification code to confirm this new phone '
-            f'number is: {code}. It expires in 10 minutes. Do not '
+            f'number is: {code}. It expires in 2 minutes. Do not '
             f'share this code with anyone.'
         ),
     )
@@ -546,7 +583,7 @@ def request_phone_change(request):
                 subject='Your CSA Phone Verification Code',
                 message=(
                     f'Your verification code to confirm your new phone '
-                    f'number is: {code}\n\nThis code expires in 10 minutes.'
+                    f'number is: {code}\n\nThis code expires in 2 minutes.'
                     f'\n\nDo not share this code with anyone.'
                 ),
                 from_email=settings.DEFAULT_FROM_EMAIL,

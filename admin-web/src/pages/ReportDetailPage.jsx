@@ -170,12 +170,23 @@ export default function ReportDetailPage() {
                 {report.evidence_description ? <p>{report.evidence_description}</p> : null}
                 {report.evidence_url ? (
                   isVideoEvidence(report.evidence_filename) ? (
-                    <video
-                      src={report.evidence_url}
-                      controls
-                      className="evidence-preview"
-                      style={{ maxWidth: '100%', maxHeight: 360, borderRadius: 8 }}
-                    />
+                    <>
+                      <video
+                        src={report.evidence_url}
+                        controls
+                        preload="metadata"
+                        playsInline
+                        className="evidence-preview"
+                        style={{ maxWidth: '100%', maxHeight: 360, borderRadius: 8 }}
+                      >
+                        Your browser can&apos;t play this video here.
+                      </video>
+                      <p className="muted-text">
+                        <a href={report.evidence_url} download target="_blank" rel="noreferrer">
+                          Download video
+                        </a>
+                      </p>
+                    </>
                   ) : (
                     <a href={report.evidence_url} target="_blank" rel="noreferrer">
                       <img
@@ -191,7 +202,7 @@ export default function ReportDetailPage() {
                           event.target.nextSibling?.classList.remove('hidden');
                         }}
                       />
-                      <span className="hidden">{report.evidence_filename || 'View evidence file'}</span>
+                      <span className="hidden">Open evidence file</span>
                     </a>
                   )
                 ) : null}

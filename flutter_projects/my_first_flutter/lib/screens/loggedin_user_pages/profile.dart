@@ -1,9 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
 import '../../services/auth_storage.dart';
+import '../../widgets/local_image.dart';
 import '../continue_login_flow.dart';
 import 'profile_pages/change_password.dart';
 import 'profile_pages/edit_profile.dart';
@@ -103,8 +102,8 @@ class _LoggedInProfileState extends State<LoggedInProfile>
                         valueListenable: AuthStorage.profileImageNotifier,
                         builder: (context, path, _) {
                           return path != null
-                              ? Image.file(
-                                  File(path),
+                              ? localImage(
+                                  path,
                                   fit: BoxFit.cover,
                                   width: 100,
                                   height: 100,

@@ -1,4 +1,5 @@
 import 'package:add_2_calendar/add_2_calendar.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:share_plus/share_plus.dart';
@@ -7,6 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_storage.dart';
 import '../../services/bookmark_service.dart';
+import '../../utils/event_status.dart';
+import '../../widgets/registered_pill.dart';
 import '../../widgets/swipe_back.dart';
 import '../../widgets/top_toast.dart';
 
@@ -88,22 +91,14 @@ class _CampaignDetailPageState extends State<CampaignDetailPage>
 
   void _shareCampaign() {
     final String title = widget.campaign['title'] ?? '';
-    Share.share('$title\n\nFind out more on the CSA App');
+    final id = widget.campaign['id'];
+    Share.share('$title\n\n${ApiService.publicWebBaseUrl}/campaigns/$id/');
   }
 
-  // Registration stays open until the campaign's end date (or start
-  // date, if it has no end date) has fully passed. Fails open (treats
-  // the campaign as still open) if the date can't be parsed.
-  bool get _hasEnded {
-    final dateStr = _detail['end_date_iso'] ?? _detail['start_date_iso'];
-    if (dateStr == null) return false;
-    try {
-      final date = DateTime.parse(dateStr);
-      return DateTime.now().isAfter(date.add(const Duration(days: 1)));
-    } catch (e) {
-      return false;
-    }
-  }
+  // True once the campaign is over. Uses the server's answer (from its
+  // own clock) when it has sent one — the list item carries it from the
+  // start, the full detail confirms it — and the dates only as a fallback.
+  bool get _hasEnded => campaignHasEnded({...widget.campaign, ..._detail});
 
   Future<void> _checkRegistration() async {
     final accessToken = await AuthStorage.getAccessToken();
@@ -135,6 +130,11 @@ class _CampaignDetailPageState extends State<CampaignDetailPage>
   }
 
   Future<void> _toggleRegistration() async {
+    if (_hasEnded) {
+      showTopToast(context, 'This campaign has ended');
+      return;
+    }
+
     final accessToken = await AuthStorage.getAccessToken();
     if (accessToken == null) {
       showTopToast(context, 'Please login to register interest');
@@ -406,12 +406,15 @@ class _CampaignDetailPageState extends State<CampaignDetailPage>
           style: ElevatedButton.styleFrom(
             backgroundColor: primaryBlue,
             foregroundColor: Colors.white,
-            elevation: 3,
+            disabledBackgroundColor: Colors.grey.shade300,
+            disabledForegroundColor: Colors.grey.shade600,
+            elevation: _hasEnded ? 0 : 3,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(6),
             ),
           ),
-          onPressed: _isRegistering ? null : _toggleRegistration,
+          onPressed:
+              (_isRegistering || _hasEnded) ? null : _toggleRegistration,
           child: _isRegistering
               ? const SizedBox(
                   height: 20,
@@ -422,7 +425,9 @@ class _CampaignDetailPageState extends State<CampaignDetailPage>
                   ),
                 )
               : Text(
-                  _registered ? 'UNREGISTER' : 'REGISTER FOR EVENT',
+                  _hasEnded
+                      ? 'CAMPAIGN HAS ENDED'
+                      : (_registered ? 'UNREGISTER' : 'REGISTER FOR EVENT'),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -430,42 +435,6 @@ class _CampaignDetailPageState extends State<CampaignDetailPage>
                 ),
         ),
       ),
-      ),
-    );
-  }
-
-  Widget _registeredPill() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(50),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _checkedIn ? Icons.verified : Icons.check_circle,
-            size: 14,
-            color: Colors.green.shade600,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            _checkedIn ? 'Checked In' : 'Registered',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -552,7 +521,7 @@ class _CampaignDetailPageState extends State<CampaignDetailPage>
                           Positioned(
                             right: 16,
                             bottom: 52,
-                            child: _registeredPill(),
+                            child: RegisteredPill(checkedIn: _checkedIn),
                           ),
 
                         // Category badge only here now — the title
@@ -615,7 +584,7 @@ class _CampaignDetailPageState extends State<CampaignDetailPage>
                 ],
               ),
             ),
-                if (!_isCheckingRegistration && !_hasEnded)
+                if (!_isCheckingRegistration)
                   Positioned(
                     left: 0,
                     right: 0,
@@ -1018,6 +987,7 @@ class _CampaignDetailPageState extends State<CampaignDetailPage>
               ],
             ),
           ),
+          if (!_hasEnded)
           IconButton(
             icon: const Icon(Icons.calendar_month_outlined,
                 color: Colors.black87, size: 20),
@@ -1044,6 +1014,17 @@ class _CampaignDetailPageState extends State<CampaignDetailPage>
     required String endTime,
     String? sessionDate,
   }) {
+    if (kIsWeb) {
+      showTopToast(
+        context,
+        'Adding to your calendar is only available in the mobile app',
+        isError: false,
+        backgroundColor: Colors.black54,
+        icon: Icons.info_outline,
+      );
+      return;
+    }
+
     DateTime? start;
 
     if (sessionDate != null && sessionDate.isNotEmpty) {

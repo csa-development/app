@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../widgets/swipe_back.dart';
 import 'ce_page.dart';
-import 'cii_page.dart';
 import 'cp_page.dart';
 import 'csp_page.dart';
 
@@ -61,11 +60,6 @@ class overviewli extends StatelessWidget {
               context,
               '3. Cybersecurity Professionals (CPs)',
               const CpPage(),
-            ),
-            _categoryTile(
-              context,
-              '4. Critical Information Infrastructure (CII)',
-              const CiiPage(),
             ),
 
             const SizedBox(height: 24),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../services/api_service.dart';
 import '../../services/auth_storage.dart';
 import '../../widgets/swipe_back.dart';
 import '../../widgets/top_toast.dart';
@@ -142,7 +143,10 @@ class _NewsDetailPageState extends State<NewsDetailPage> {
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  Share.share('$title\n\nRead more on the CSA App');
+                  final newsId = widget.article['id'];
+                  Share.share(
+                    '$title\n\n${ApiService.publicWebBaseUrl}/news/$newsId/',
+                  );
                 },
               ),
             ],

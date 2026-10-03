@@ -2,14 +2,18 @@ import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:google_fonts/google_fonts.dart';
 
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
+import 'services/connectivity_service.dart';
+import 'services/deep_link_service.dart';
 import 'services/notification_service.dart';
 import 'widgets/inactivity_watcher.dart';
+import 'widgets/offline_banner.dart';
 
 // Shared route observer — lets any screen (e.g. LoggedInHome) find out
 // when it's been returned to after a pushed screen (e.g. EventDetailPage)
@@ -38,6 +42,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 // - the `http` package and Image.network alike. Only the CA's PUBLIC
 // certificate lives in the app; its private key never leaves the server PC.
 Future<void> _trustCsaCertificateAuthority() async {
+  // A browser decides certificate trust itself (accept the warning once
+  // at https://localhost:8000); the app has no say over it.
+  if (kIsWeb) return;
   try {
     final data = await rootBundle.load('assets/certs/csa_ca.pem');
     SecurityContext.defaultContext
@@ -50,15 +57,41 @@ Future<void> _trustCsaCertificateAuthority() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Poppins ships inside the app (assets/google_fonts), so it's ready on
+  // the very first frame and works offline. Without this the package
+  // would also try to download fonts at runtime, and text would draw in
+  // the phone's default font first and then jump when Poppins arrived.
+  GoogleFonts.config.allowRuntimeFetching = false;
+  // Even a bundled font loads asynchronously, so request the exact styles
+  // the theme below uses and wait for them before the first frame. Keep
+  // these in step with MyApp's ThemeData.
+  GoogleFonts.poppins();
+  GoogleFonts.poppinsTextTheme();
+  GoogleFonts.poppins(fontWeight: FontWeight.w700);
+  try {
+    await GoogleFonts.pendingFonts();
+  } catch (e) {
+    debugPrint('Could not preload Poppins: $e');
+  }
+
   await _trustCsaCertificateAuthority();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  // Push notifications and app/universal links are phone features —
+  // skipped when the app runs in a browser for testing.
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    await NotificationService.initialize();
+  }
 
-  await NotificationService.initialize();
+  await ConnectivityService.initialize();
 
   runApp(const MyApp());
+
+  if (!kIsWeb) {
+    DeepLinkService.initialize();
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -70,8 +103,9 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
       navigatorObservers: [routeObserver],
-      builder: (context, child) =>
-          InactivityWatcher(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => InactivityWatcher(
+        child: OfflineBanner(child: child ?? const SizedBox.shrink()),
+      ),
       theme: ThemeData(
         // App-wide font, replacing the old bundled SourceSansPro/
         // BankGothic pair — GoogleFonts.poppinsTextTheme() sets every

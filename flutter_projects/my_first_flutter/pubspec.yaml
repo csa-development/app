@@ -34,11 +34,18 @@ dependencies:
   latlong2: ^0.9.1
   geolocator: ^13.0.2
   another_flushbar: ^2.2.4
+  # Catches incoming App Links / Universal Links (e.g. a shared news
+  # article link tapped from WhatsApp) so the app can open straight to
+  # that content instead of just the home screen.
+  app_links: ^6.3.2
+  connectivity_plus: ^7.3.1
+  pdfx: ^2.11.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_native_splash: ^2.4.8
 
 flutter:
   uses-material-design: true
@@ -46,6 +53,7 @@ flutter:
   assets:
     - assets/csalogowhite.png
     - assets/certs/csa_ca.pem
+    - assets/legal/
     - assets/csaintro2.png
     - assets/csaintro3.png
     - assets/CSALOGO.png
@@ -61,6 +69,9 @@ flutter:
     - assets/children_final.png
     - assets/public_final.png
     - assets/main_csa_logo_final.png
+    # Poppins, bundled so google_fonts never has to fetch it over the
+    # network (see main.dart). OFL.txt is its license.
+    - assets/google_fonts/
 
   # SourceSansPro/BankGothic (bundled .ttf/.otf assets) removed —
   # replaced app-wide by Poppins via the google_fonts package (see

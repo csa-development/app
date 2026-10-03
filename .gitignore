@@ -26,3 +26,6 @@ csa_backend/csa_project/accounts/*.json
 csa_backend/certs/*
 !csa_backend/certs/make_certs.sh
 !csa_backend/certs/ca.crt
+
+# Test JWTs written by a push-test script; never commit
+csa_backend/csa_mobile_api/tokens.json

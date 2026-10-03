@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../services/api_service.dart';
 import '../../services/bookmark_service.dart';
 import '../../widgets/swipe_back.dart';
 import '../../widgets/top_toast.dart';
@@ -51,7 +52,6 @@ class _PressReleaseDetailPageState extends State<PressReleaseDetailPage> {
 
   void _showMoreOptions() {
     final String title = widget.pressRelease['title'] ?? '';
-    final String body = widget.pressRelease['body'] ?? '';
 
     showModalBottomSheet(
       context: context,
@@ -107,7 +107,10 @@ class _PressReleaseDetailPageState extends State<PressReleaseDetailPage> {
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  Share.share('$title\n\n$body');
+                  final releaseId = widget.pressRelease['id'];
+                  Share.share(
+                    '$title\n\n${ApiService.publicWebBaseUrl}/press/$releaseId/',
+                  );
                 },
               ),
             ],

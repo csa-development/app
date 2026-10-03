@@ -7,11 +7,14 @@ from csa_shared_models.incidents.models import (
     Incident, Certificate, IncidentStatusOption, status_label, status_color,
 )
 
-# 25MB — generous for a phone photo/short video clip, but still a firm
-# cap so one upload can't fill the shared media disk or time out the
-# request. Client-side (report_incident_2.dart) should already keep
-# picks well under this; this is the server-side backstop.
-MAX_EVIDENCE_FILE_BYTES = 25 * 1024 * 1024
+from .evidence import vet_evidence_file
+
+# 100MB — a phone video of a minute or so is routinely 30-80MB, so a
+# smaller cap would reject most real video evidence. Still a firm cap so
+# one upload can't fill the shared media disk. The app
+# (report_incident_2.dart) checks the same limit right after the file
+# is picked; this is the server-side backstop.
+MAX_EVIDENCE_FILE_BYTES = 100 * 1024 * 1024
 
 # NOTE: incident status changes are a CERT action only, done through the
 # admin API (permission-gated). The mobile app has no status-write
@@ -56,9 +59,13 @@ def submit_report(request):
     evidence_file = request.FILES.get('evidence_file')
     if evidence_file and evidence_file.size > MAX_EVIDENCE_FILE_BYTES:
         return Response(
-            {'error': 'Evidence file is too large (25MB max).'},
+            {'error': 'Evidence file is too large (100MB max).'},
             status=400,
         )
+    if evidence_file:
+        evidence_file, evidence_error = vet_evidence_file(evidence_file)
+        if evidence_error:
+            return Response({'error': evidence_error}, status=400)
 
     incident = Incident.objects.create(
         user=request.user,

@@ -25,8 +25,13 @@ from csa_shared_models.content.models import (
 
 
 def get_image_url(request, image):
+    # Relative, not request.build_absolute_uri(...): the admin web app's
+    # Vite dev server proxies /media to this API (including through its
+    # self-signed HTTPS cert, which the browser itself doesn't trust), so
+    # an absolute URL here would make the browser load images from this
+    # API's origin directly and hit that untrusted-cert wall.
     if image:
-        return request.build_absolute_uri(image.url)
+        return image.url
     return None
 
 

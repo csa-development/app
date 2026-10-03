@@ -1,21 +1,76 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:http/http.dart' as http;
 
 import 'auth_storage.dart';
+import 'connectivity_service.dart';
 
 class ApiService {
   // Every request in this file uses this same timeout. A dead/very
   // poor connection previously hung indefinitely instead of failing
   // with a clear message.
   static const Duration _timeout = Duration(seconds: 15);
+  static const Duration _uploadTimeout = Duration(minutes: 5);
+
+  // What a citizen sees when a request itself fails (as opposed to the
+  // server answering with its own message, e.g. "Invalid or expired
+  // code", which is always passed through untouched). `kind` lets a
+  // screen tell the cases apart without parsing the text.
+  static const Map<String, dynamic> _offlineError = {
+    'success': false,
+    'kind': 'offline',
+    'error':
+        'No internet connection. Check your Wi-Fi or mobile data and try again.',
+  };
 
   static const Map<String, dynamic> _timeoutError = {
     'success': false,
-    'error': 'Request timed out — check your internet connection and try again',
+    'kind': 'timeout',
+    'error':
+        'This is taking longer than expected. Check your connection and try again.',
   };
+
+  static const Map<String, dynamic> _serverError = {
+    'success': false,
+    'kind': 'server',
+    'error':
+        "We're having trouble reaching CSA right now. Please try again in a few minutes.",
+  };
+
+  static const Map<String, dynamic> _unknownError = {
+    'success': false,
+    'kind': 'unknown',
+    'error': 'Something went wrong. Please try again.',
+  };
+
+  static bool _isNetworkError(Object error) =>
+      error is SocketException ||
+      error is http.ClientException ||
+      error is TlsException;
+
+  /// Maps an exception thrown by a request to the message shown to the
+  /// user. A network-level failure is "offline" only if the phone really
+  /// has no network; otherwise the problem is on CSA's side. An unreadable
+  /// reply (e.g. an HTML error page from a proxy) is also CSA's side. A
+  /// timeout is handled separately by the callers.
+  @visibleForTesting
+  static Map<String, dynamic> failureFor(
+    Object error, {
+    required bool offline,
+  }) {
+    if (_isNetworkError(error)) return offline ? _offlineError : _serverError;
+    if (error is FormatException) return _serverError;
+    return _unknownError;
+  }
+
+  static Future<Map<String, dynamic>> _failure(Object error) async {
+    final offline = _isNetworkError(error) && await ConnectivityService.checkOffline();
+    return failureFor(error, offline: offline);
+  }
 
   // ===== NETWORK TARGET TOGGLE =====
   // Set this to true when testing on a REAL PHONE (e.g. installing the
@@ -39,9 +94,22 @@ class ApiService {
   // separately on 8001. Every path this file calls (register/,
   // request-otp/, content/*, incidents/submit/, etc.) is a citizen
   // route that only exists on csa_mobile_api.
-  static const String baseUrl = _useRealDevice
-      ? 'https://$_realDeviceIp:8000/api'
-      : 'https://10.0.2.2:8000/api';
+  // In a browser (flutter run -d chrome) the server is simply this PC's
+  // localhost — the phone/emulator addresses above don't apply.
+  static const String baseUrl = kIsWeb
+      ? 'https://localhost:8000/api'
+      : (_useRealDevice
+          ? 'https://$_realDeviceIp:8000/api'
+          : 'https://10.0.2.2:8000/api');
+
+  // Domain for links put in shared text (WhatsApp, SMS, etc.) — separate
+  // from baseUrl above, which is this PC's LAN address and would be
+  // meaningless to anyone else. These links only work as real App
+  // Links/Universal Links once csa.gov.gh is actually pointed at wherever
+  // csa_mobile_api is deployed, and the app is signed with a key that
+  // matches /.well-known/assetlinks.json served there (see
+  // content/public_views.py in csa_mobile_api for that file).
+  static const String publicWebBaseUrl = 'https://csa.gov.gh';
 
   // ===== AUTH-AWARE REQUEST WRAPPER =====
 
@@ -139,7 +207,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -165,7 +233,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -191,7 +259,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -233,7 +301,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -266,7 +334,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -299,7 +367,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -346,7 +414,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -377,7 +445,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -414,7 +482,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -447,7 +515,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -473,6 +541,10 @@ class ApiService {
     // this is set, the request goes as multipart/form-data instead of
     // plain JSON so the file bytes actually get uploaded.
     File? evidenceFile,
+    // Browser builds can't read a file from disk, so the file's bytes
+    // (and name) are passed instead. Phones keep using evidenceFile.
+    Uint8List? evidenceBytes,
+    String evidenceFilename = 'evidence',
   }) async {
     final fields = {
       'incident_type': incidentType,
@@ -491,7 +563,7 @@ class ApiService {
 
     try {
       final http.Response response;
-      if (evidenceFile != null) {
+      if (evidenceFile != null || evidenceBytes != null) {
         response = await _sendMultipartWithAutoRefresh(
           accessToken,
           (token) async {
@@ -502,12 +574,21 @@ class ApiService {
             request.headers['Authorization'] = 'Bearer $token';
             request.fields.addAll(fields);
             request.files.add(
-              await http.MultipartFile.fromPath(
-                'evidence_file',
-                evidenceFile.path,
-              ),
+              evidenceBytes != null
+                  ? http.MultipartFile.fromBytes(
+                      'evidence_file',
+                      evidenceBytes,
+                      filename: evidenceFilename,
+                    )
+                  : await http.MultipartFile.fromPath(
+                      'evidence_file',
+                      evidenceFile!.path,
+                    ),
             );
-            final streamed = await request.send().timeout(_timeout);
+            // Far longer than the 15s every other call gets: this has
+            // to cover pushing the whole file up (a video can be tens
+            // of MB on mobile data) before the server answers at all.
+            final streamed = await request.send().timeout(_uploadTimeout);
             return http.Response.fromStream(streamed);
           },
         );
@@ -548,7 +629,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -597,7 +678,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -630,7 +711,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -659,7 +740,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -691,7 +772,33 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> getNewsDetail({
+    required int newsId,
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/content/news/$newsId/'),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(_timeout);
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': data};
+      } else {
+        return {
+          'success': false,
+          'error': data['error'] ?? 'Failed to load article',
+        };
+      }
+    } on TimeoutException {
+      return _timeoutError;
+    } catch (e) {
+      return _failure(e);
     }
   }
 
@@ -710,7 +817,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -732,7 +839,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -753,7 +860,33 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> getEventDetail({
+    required int eventId,
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/content/events/$eventId/'),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(_timeout);
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': data};
+      } else {
+        return {
+          'success': false,
+          'error': data['error'] ?? 'Failed to load event',
+        };
+      }
+    } on TimeoutException {
+      return _timeoutError;
+    } catch (e) {
+      return _failure(e);
     }
   }
 
@@ -772,7 +905,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -796,7 +929,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -818,7 +951,33 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> getPressReleaseDetail({
+    required int releaseId,
+  }) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/content/press-releases/$releaseId/'),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(_timeout);
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': data};
+      } else {
+        return {
+          'success': false,
+          'error': data['error'] ?? 'Failed to load press release',
+        };
+      }
+    } on TimeoutException {
+      return _timeoutError;
+    } catch (e) {
+      return _failure(e);
     }
   }
 
@@ -837,7 +996,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -856,7 +1015,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -888,7 +1047,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -918,7 +1077,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -949,7 +1108,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -985,7 +1144,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -1015,7 +1174,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -1045,7 +1204,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -1076,7 +1235,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -1106,7 +1265,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 
@@ -1164,7 +1323,7 @@ class ApiService {
     } on TimeoutException {
       return _timeoutError;
     } catch (e) {
-      return {'success': false, 'error': 'Could not connect to server'};
+      return _failure(e);
     }
   }
 }

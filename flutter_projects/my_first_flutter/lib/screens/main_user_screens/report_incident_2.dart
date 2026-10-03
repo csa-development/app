@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:image_picker/image_picker.dart';
@@ -8,6 +9,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../services/api_service.dart';
 import '../../services/auth_storage.dart';
+import '../../widgets/local_image.dart';
 import '../../widgets/swipe_back.dart';
 import '../../widgets/top_toast.dart';
 import 'location_picker.dart';
@@ -76,6 +78,24 @@ class _ReportIncident2ScreenState extends State<ReportIncident2Screen> {
   /// control (permission denied, no camera app installed, etc.) —
   /// previously this failed silently with no feedback, which is
   /// indistinguishable from "the camera doesn't work" to a user.
+  // Matches the server's limit (incidents/views.py) so a too-big video is
+  // refused straight away instead of after a long upload.
+  static const int _maxEvidenceBytes = 100 * 1024 * 1024;
+
+  Future<void> _acceptPickedFile(XFile? file) async {
+    if (file == null) return;
+    final size = await file.length();
+    if (!mounted) return;
+    if (size > _maxEvidenceBytes) {
+      showTopToast(
+        context,
+        'That file is too large. Please choose one under 100 MB.',
+      );
+      return;
+    }
+    setState(() => _selectedFile = file);
+  }
+
   Future<XFile?> _pickImageSafely(ImageSource source) async {
     try {
       return await _picker.pickImage(source: source, imageQuality: 80);
@@ -135,9 +155,7 @@ class _ReportIncident2ScreenState extends State<ReportIncident2Screen> {
                 onTap: () async {
                   Navigator.pop(context);
                   final file = await _pickImageSafely(ImageSource.gallery);
-                  if (file != null) {
-                    setState(() => _selectedFile = file);
-                  }
+                  await _acceptPickedFile(file);
                 },
               ),
               ListTile(
@@ -157,9 +175,7 @@ class _ReportIncident2ScreenState extends State<ReportIncident2Screen> {
                     );
                     return;
                   }
-                  if (file != null) {
-                    setState(() => _selectedFile = file);
-                  }
+                  await _acceptPickedFile(file);
                 },
               ),
               ListTile(
@@ -169,9 +185,7 @@ class _ReportIncident2ScreenState extends State<ReportIncident2Screen> {
                 onTap: () async {
                   Navigator.pop(context);
                   final file = await _pickImageSafely(ImageSource.camera);
-                  if (file != null) {
-                    setState(() => _selectedFile = file);
-                  }
+                  await _acceptPickedFile(file);
                 },
               ),
               if (_selectedFile != null)
@@ -252,7 +266,13 @@ class _ReportIncident2ScreenState extends State<ReportIncident2Screen> {
       reporterPhone: phoneController.text.trim(),
       reportingForSomeone: false,
       evidenceDescription: _selectedFile?.name ?? '',
-      evidenceFile: _selectedFile != null ? File(_selectedFile!.path) : null,
+      evidenceFile: _selectedFile != null && !kIsWeb
+          ? File(_selectedFile!.path)
+          : null,
+      evidenceBytes: _selectedFile != null && kIsWeb
+          ? await _selectedFile!.readAsBytes()
+          : null,
+      evidenceFilename: _selectedFile?.name ?? 'evidence',
     );
 
     setState(() => _isLoading = false);
@@ -496,9 +516,11 @@ class _ReportIncident2ScreenState extends State<ReportIncident2Screen> {
     final file = _selectedFile;
     if (file == null) return false;
     if (file.mimeType?.startsWith('video/') ?? false) return true;
-    final path = file.path.toLowerCase();
-    final dot = path.lastIndexOf('.');
-    return dot != -1 && _videoExtensions.contains(path.substring(dot + 1));
+    // name, not path: in a browser the path is a temporary link with no
+    // extension, while the name still carries the original one.
+    final name = file.name.toLowerCase();
+    final dot = name.lastIndexOf('.');
+    return dot != -1 && _videoExtensions.contains(name.substring(dot + 1));
   }
 
   Widget _uploadBox() {
@@ -519,10 +541,10 @@ class _ReportIncident2ScreenState extends State<ReportIncident2Screen> {
                     child: _selectedIsVideo
                         ? _VideoPreview(
                             key: ValueKey(_selectedFile!.path),
-                            file: File(_selectedFile!.path),
+                            path: _selectedFile!.path,
                           )
-                        : Image.file(
-                            File(_selectedFile!.path),
+                        : localImage(
+                            _selectedFile!.path,
                             width: double.infinity,
                             height: 160,
                             fit: BoxFit.cover,
@@ -601,9 +623,9 @@ class _ReportIncident2ScreenState extends State<ReportIncident2Screen> {
 /// Never plays — it only needs to decode one frame. If the frame can't be
 /// decoded, the dark tile with the play badge is still shown.
 class _VideoPreview extends StatefulWidget {
-  final File file;
+  final String path;
 
-  const _VideoPreview({super.key, required this.file});
+  const _VideoPreview({super.key, required this.path});
 
   @override
   State<_VideoPreview> createState() => _VideoPreviewState();
@@ -616,7 +638,10 @@ class _VideoPreviewState extends State<_VideoPreview> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.file(widget.file);
+    // In a browser the picked video is a temporary web link, not a file.
+    _controller = kIsWeb
+        ? VideoPlayerController.networkUrl(Uri.parse(widget.path))
+        : VideoPlayerController.file(File(widget.path));
     _controller.initialize().then((_) async {
       await _controller.seekTo(Duration.zero);
       if (mounted) setState(() => _ready = true);

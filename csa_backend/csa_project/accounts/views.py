@@ -40,7 +40,13 @@ def _rate_limited_response():
 
 def send_sms_otp(phone, otp):
     try:
-        api_key = 'Q1NBIE1vYmlsZSBBcHA6TnVjbGV1cy1DU0E6MjEyOkFQSWtkczAxNDI0Nzg1NDU='
+        # Never hardcode this — it used to sit here in plain text (base64
+        # is not encryption). Read from the environment like the live
+        # csa_mobile_api does.
+        import os
+        api_key = os.environ.get('RANCARD_SMS_API_KEY', '')
+        if not api_key:
+            return False
         sender_id = 'CSA'
         message = f'Your CSA login OTP is: {otp}. It expires in 2 minutes. Do not share this code.'
 

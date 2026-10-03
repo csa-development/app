@@ -130,6 +130,7 @@ class _NotificationPreferencesPageState
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -221,7 +222,6 @@ class _NotificationPreferencesPageState
             ],
           );
         }),
-      ),
       ),
     );
   }

@@ -177,6 +177,8 @@ class NotificationService {
   /// passes false so launching never stalls, and relies on
   /// onTokenRefresh (above) to deliver the token when it appears.
   static Future<String?> _getFcmToken({bool waitForApns = false}) async {
+    // No push on the browser build used for testing.
+    if (kIsWeb) return null;
     try {
       if (defaultTargetPlatform == TargetPlatform.iOS && waitForApns) {
         for (var i = 0; i < 5; i++) {

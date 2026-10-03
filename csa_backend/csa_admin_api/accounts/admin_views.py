@@ -11,6 +11,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import (
     api_view,
+    authentication_classes,
     parser_classes,
     permission_classes,
 )
@@ -28,6 +29,7 @@ from csa_shared_models.accounts.utils import (
     revoke_all_tokens,
 )
 
+from .cookie_auth import set_auth_cookies
 from .permissions import (
     ALL_ROLES,
     IsITOrSuperAdmin,
@@ -156,6 +158,7 @@ def _login_throttle_key(request, identifier):
 
 
 @api_view(['POST'])
+@authentication_classes([])  # a stale cookie must never block signing in
 @permission_classes([AllowAny])
 def admin_login(request):
     identifier = request.data.get('identifier', '').strip()
@@ -200,10 +203,10 @@ def admin_login(request):
 
     roles, primary_role = resolve_roles(user)
 
-    return Response({
+    # The tokens go out as HttpOnly cookies (see cookie_auth.py), not in
+    # the response body, so page scripts can never read them.
+    response = Response({
         'message': 'Admin login successful.',
-        'access': str(refresh.access_token),
-        'refresh': str(refresh),
         'admin': {
             'id': user.id,
             'username': user.username,
@@ -213,6 +216,9 @@ def admin_login(request):
             'primary_role': primary_role,
         }
     })
+    set_auth_cookies(
+        response, access=str(refresh.access_token), refresh=str(refresh))
+    return response
 
 
 @api_view(['GET'])

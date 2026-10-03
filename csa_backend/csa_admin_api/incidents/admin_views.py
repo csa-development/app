@@ -8,6 +8,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from accounts.permissions import IsCERTOrSuperAdmin, IsLECOOrITOrSuperAdmin
+from csa_admin_api.media_views import evidence_link
 
 from csa_shared_models.incidents.models import (
     Certificate, Incident, IncidentStatusOption, status_label, status_color,
@@ -44,12 +45,16 @@ def as_pie_slices(counted, limit, other_label='Other'):
 
 
 def serialize_incident(incident, request=None):
-    evidence_url = None
-    if incident.evidence_file:
-        evidence_url = (
-            request.build_absolute_uri(incident.evidence_file.url)
-            if request else incident.evidence_file.url
-        )
+    # A short-lived signed link, not the file's public /media/ path:
+    # evidence is sensitive, so /media/ refuses it and only staff who
+    # passed this view's permission check ever get a working link.
+    # Relative (not request.build_absolute_uri) so the dashboard's dev
+    # proxy serves it from its own origin, avoiding the browser's
+    # untrusted-self-signed-cert wall.
+    evidence_url = (
+        evidence_link(incident.evidence_file.name)
+        if incident.evidence_file else None
+    )
     return {
         'reference_number': incident.reference_number,
         'incident_type': incident.incident_type,

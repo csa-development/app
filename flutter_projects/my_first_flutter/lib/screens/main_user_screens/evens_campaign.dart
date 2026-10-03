@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
+import '../../utils/event_status.dart';
+import '../../widgets/ended_badge.dart';
 import '../../widgets/swipe_back.dart';
 import '../loggedin_user_pages/event_detail.dart';
 
@@ -108,16 +110,35 @@ class _EventsCampaignScreenState extends State<EventsCampaignScreen> {
     }
   }
 
+  // Events and campaigns that are over. Press releases never end.
+  bool _isEnded(Map<String, dynamic> item) {
+    final bool isPressRelease = item.containsKey('body') &&
+        !item.containsKey('event_date') &&
+        !item.containsKey('start_date');
+    if (isPressRelease) return false;
+    final bool isCampaign =
+        item.containsKey('start_date') && !item.containsKey('event_date');
+    return isCampaign ? campaignHasEnded(item) : eventHasEnded(item);
+  }
+
   List<Map<String, dynamic>> get _filteredContent {
-    if (_searchQuery.isEmpty) return _baseContent;
-    return _baseContent
-        .where(
-          (item) => (item['title'] ?? '')
-              .toString()
-              .toLowerCase()
-              .contains(_searchQuery.toLowerCase()),
-        )
-        .toList();
+    final List<Map<String, dynamic>> matches = _searchQuery.isEmpty
+        ? _baseContent
+        : _baseContent
+            .where(
+              (item) => (item['title'] ?? '')
+                  .toString()
+                  .toLowerCase()
+                  .contains(_searchQuery.toLowerCase()),
+            )
+            .toList();
+
+    // Upcoming and ongoing first, ended ones after — each group keeps the
+    // order the server sent.
+    return [
+      ...matches.where((item) => !_isEnded(item)),
+      ...matches.where(_isEnded),
+    ];
   }
 
   @override
@@ -399,7 +420,8 @@ class _EventsCampaignScreenState extends State<EventsCampaignScreen> {
     final String location = item['location'] ?? '';
     final String meta =
         location.isNotEmpty ? '$date  |  $location' : date;
-    final String countdown = _getCountdown(item);
+    final bool ended = _isEnded(item);
+    final String countdown = ended ? '' : _getCountdown(item);
     final bool isCampaign = item.containsKey('start_date') &&
         !item.containsKey('event_date');
     final bool isPressRelease = item.containsKey('body') &&
@@ -479,6 +501,11 @@ class _EventsCampaignScreenState extends State<EventsCampaignScreen> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
+                        ),
+                      if (ended)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 8),
+                          child: EndedBadge(),
                         ),
                       if (countdown.isNotEmpty && !isPressRelease)
                         Container(

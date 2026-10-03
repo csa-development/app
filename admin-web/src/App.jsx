@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import RoleRoute from './components/RoleRoute';
@@ -25,7 +25,12 @@ import StaffPage from './pages/StaffPage';
 import UserProfilePage from './pages/UserProfilePage';
 import UsersPage from './pages/UsersPage';
 import { CERT, COMMS, IT, LECO, SUPERADMIN, roleHomePath } from './roleAccess';
-import { clearAdminSession, getStoredAdmin, loginAdmin } from './services/api';
+import {
+  SESSION_EXPIRED_EVENT,
+  getStoredAdmin,
+  loginAdmin,
+  logoutAdmin
+} from './services/api';
 
 export default function App() {
   const [admin, setAdmin] = useState(getStoredAdmin());
@@ -46,10 +51,17 @@ export default function App() {
     }
   }
 
-  function handleLogout() {
-    clearAdminSession();
+  async function handleLogout() {
+    await logoutAdmin();
     setAdmin(null);
   }
+
+  // The server rejected the session (expired or revoked): back to login.
+  useEffect(() => {
+    const onExpired = () => setAdmin(null);
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, []);
 
   if (!admin) {
     return (

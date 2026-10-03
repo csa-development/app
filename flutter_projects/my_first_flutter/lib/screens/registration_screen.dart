@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 
+import '../services/phone_format.dart';
 import 'registration_flow.dart';
 
 class RegistrationScreen extends StatefulWidget {
@@ -27,6 +29,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   static const Color primaryBlue = Color(0xFF00334D);
   static const Color lightBg = Color(0xFFF3F6F9);
   static const double fieldRadius = 8;
+
+  // Faded 'xx xxx xxxx'-style placeholder for the selected country.
+  String _phoneHint = phoneMaskForIso('GH');
 
   final FocusNode _firstNameFocusNode = FocusNode();
 
@@ -200,6 +205,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 // type an arbitrary number of digits regardless of
                 // the selected country.
                 disableLengthCheck: false,
+                // Digits only, so the country's digit limit is the only
+                // thing that can be typed or pasted.
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 invalidNumberMessage: '',
                 cursorColor: primaryBlue,
 
@@ -211,7 +219,11 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   focusedErrorBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
                   counterText: '',
-                  hintText: '',
+                  hintText: _phoneHint,
+                  hintStyle: const TextStyle(
+                    fontSize: 15,
+                    color: Colors.black26,
+                  ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 16,
@@ -259,9 +271,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   widget.phoneController.text = phone.completeNumber;
                 },
 
-                onCountryChanged: (_) {
+                onCountryChanged: (country) {
                   widget.phoneController.clear();
-                  setState(() {});
+                  setState(() => _phoneHint = phoneMaskFor(country));
                 },
               ),
             ),

@@ -24,13 +24,14 @@ export default function LoginPage({ onLogin, loading, error }) {
           <p className="eyebrow">CSA Mobile</p>
           <h1>Admin Console Login</h1>
         </div>
-        <form className="form" onSubmit={handleSubmit}>
+        <form className="form" onSubmit={handleSubmit} autoComplete="off">
           <label>
             Username or email
             <input
               name="identifier"
               value={form.identifier}
               onChange={handleChange}
+              autoComplete="off"
               required
             />
           </label>
@@ -42,6 +43,7 @@ export default function LoginPage({ onLogin, loading, error }) {
               type="password"
               value={form.password}
               onChange={handleChange}
+              autoComplete="new-password"
               required
             />
           </label>

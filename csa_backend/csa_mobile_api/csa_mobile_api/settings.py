@@ -61,7 +61,12 @@ INSTALLED_APPS = [
     'csa_shared_models.incidents.apps.IncidentsConfig',
 ]
 
+# Off by default. Only for testing the app in a browser on this PC — see
+# dev_cors.py. Never enable on a deployed server.
+CORS_ALLOW_LOCALHOST = os.environ.get('CORS_ALLOW_LOCALHOST', 'False') == 'True'
+
 MIDDLEWARE = [
+    'csa_mobile_api.dev_cors.LocalhostCorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

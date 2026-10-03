@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .cookie_auth import admin_logout, admin_refresh
 from .admin_views import (
     admin_contact_messages,
     admin_dashboard,
@@ -14,6 +15,8 @@ from .admin_views import (
 
 urlpatterns = [
     path('admin/login/', admin_login, name='admin_login'),
+    path('admin/refresh/', admin_refresh, name='admin_refresh'),
+    path('admin/logout/', admin_logout, name='admin_logout'),
     path('admin/dashboard/', admin_dashboard, name='admin_dashboard'),
     path('admin/users/', admin_users, name='admin_users'),
     path('admin/users/<int:user_id>/', admin_user_detail, name='admin_user_detail'),

@@ -1,0 +1,21 @@
+# Native launch screen (what shows before Flutter draws its first frame).
+# Plain navy on iPhone and Android, light and dark mode, so it matches the
+# in-app splash and there is no white (or black) flash on start.
+# Regenerate after any change here with:
+#   dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#00334D"
+  color_dark: "#00334D"
+
+  android: true
+  ios: true
+  web: false
+
+  # Android 12 and newer draw their own splash with a centred icon. The
+  # image below is fully transparent, so only the navy shows (otherwise
+  # Android uses the launcher icon).
+  android_12:
+    color: "#00334D"
+    color_dark: "#00334D"
+    image: assets/splash/transparent.png
+    image_dark: assets/splash/transparent.png

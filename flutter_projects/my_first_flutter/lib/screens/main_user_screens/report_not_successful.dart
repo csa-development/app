@@ -66,7 +66,7 @@ class ReportNotSuccessfulScreen extends StatelessWidget {
               Text(
                 errorMessage?.trim().isNotEmpty == true
                     ? errorMessage!
-                    : 'Your report could not be submitted. Check your internet connection and try again.',
+                    : 'Your report could not be submitted. Please try again.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 14, color: Colors.black87),
               ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:share_plus/share_plus.dart';
 
+import '../../services/api_service.dart';
 import '../../widgets/swipe_back.dart';
 
 class CampaignArticleDetailPage extends StatelessWidget {
@@ -41,8 +41,9 @@ class CampaignArticleDetailPage extends StatelessWidget {
                   Icons.share_outlined,
                   color: Colors.white,
                 ),
-                onPressed: () =>
-                    Share.share('$title\n\nFind out more on the CSA App'),
+                onPressed: () => Share.share(
+                  '$title\n\n${ApiService.publicWebBaseUrl}/campaigns/${campaign['id']}/',
+                ),
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(

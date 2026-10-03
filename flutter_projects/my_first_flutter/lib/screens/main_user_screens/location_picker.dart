@@ -7,6 +7,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
+import '../../widgets/top_toast.dart';
+
 // ============================================================
 // LOCATION PICKER
 //
@@ -150,8 +152,12 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+    showTopToast(
+      context,
+      message,
+      isError: false,
+      backgroundColor: Colors.black54,
+      icon: Icons.info_outline,
     );
   }
 

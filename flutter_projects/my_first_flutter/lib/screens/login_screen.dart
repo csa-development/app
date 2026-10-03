@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 
 import '../services/api_service.dart';
+import '../services/phone_format.dart';
 import 'login_verification.dart';
+import '../widgets/top_toast.dart';
 
 enum IdentificationMethod { phone, email }
 
@@ -29,6 +32,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   String _completePhoneNumber = '';
+
+  // Faded 'xx xxx xxxx'-style placeholder for the selected country.
+  String _phoneHint = phoneMaskForIso('GH');
 
   static const double fieldRadius = 8;
 
@@ -57,18 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showTopError(String message) {
-    final overlay = Overlay.of(context);
-
-    late OverlayEntry entry;
-
-    entry = OverlayEntry(
-      builder: (_) => _TopToast(
-        message: message,
-        onDismiss: () => entry.remove(),
-      ),
-    );
-
-    overlay.insert(entry);
+    showTopToast(context, message);
   }
 
   Future<void> _requestOtp() async {
@@ -267,6 +262,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       // digits regardless of country.
                       disableLengthCheck: false,
 
+                      // Digits only, so the country's digit limit is the
+                      // only thing that can be typed or pasted.
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
+
                       invalidNumberMessage: '',
 
                       cursorColor:
@@ -288,7 +289,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             InputBorder.none,
 
                         counterText: '',
-                        hintText: '',
+                        hintText: _phoneHint,
+                        hintStyle: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.black26,
+                        ),
 
                         contentPadding:
                             const EdgeInsets
@@ -367,6 +372,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         setState(() {
                           _completePhoneNumber =
                               '';
+                          _phoneHint =
+                              phoneMaskFor(country);
                         });
                       },
                     ),
@@ -553,6 +560,9 @@ class _LoginScreenState extends State<LoginScreen> {
           _inputController.clear();
 
           _completePhoneNumber = '';
+
+          // The phone field is rebuilt showing Ghana again.
+          _phoneHint = phoneMaskForIso('GH');
         });
 
         WidgetsBinding.instance
@@ -676,178 +686,6 @@ class _RoundCheck extends StatelessWidget {
         Icons.check,
         size: 13,
         color: Colors.white,
-      ),
-    );
-  }
-}
-
-// ============================================================
-// TOP TOAST
-// ============================================================
-
-class _TopToast extends StatefulWidget {
-  final String message;
-  final VoidCallback onDismiss;
-
-  const _TopToast({
-    required this.message,
-    required this.onDismiss,
-  });
-
-  @override
-  State<_TopToast> createState() =>
-      _TopToastState();
-}
-
-class _TopToastState
-    extends State<_TopToast>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController
-      _controller;
-
-  late final Animation<Offset>
-      _slide;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _controller =
-        AnimationController(
-      vsync: this,
-      duration:
-          const Duration(
-        milliseconds: 250,
-      ),
-    );
-
-    _slide = Tween<Offset>(
-      begin: const Offset(0, -1),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOut,
-      ),
-    );
-
-    _controller.forward();
-
-    Future.delayed(
-      const Duration(
-        milliseconds: 2500,
-      ),
-      () async {
-        if (!mounted) return;
-
-        await _controller.reverse();
-
-        widget.onDismiss();
-      },
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-
-      child: SafeArea(
-        child: SlideTransition(
-          position: _slide,
-
-          child: Padding(
-            padding:
-                const EdgeInsets
-                    .symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
-
-            child: Material(
-              color:
-                  Colors.transparent,
-
-              child: Container(
-                width:
-                    double.infinity,
-
-                padding:
-                    const EdgeInsets
-                        .symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-
-                decoration:
-                    BoxDecoration(
-                  color: Colors.red,
-
-                  borderRadius:
-                      BorderRadius
-                          .circular(8),
-
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors
-                          .black
-                          .withValues(
-                        alpha: 0.15,
-                      ),
-                      blurRadius: 8,
-                      offset:
-                          const Offset(
-                        0,
-                        3,
-                      ),
-                    ),
-                  ],
-                ),
-
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons
-                          .error_outline,
-                      color:
-                          Colors.white,
-                      size: 20,
-                    ),
-
-                    const SizedBox(
-                      width: 10,
-                    ),
-
-                    Expanded(
-                      child: Text(
-                        widget.message,
-                        style:
-                            const TextStyle(
-                          color:
-                              Colors.white,
-                          fontWeight:
-                              FontWeight
-                                  .w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

@@ -39,6 +39,19 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- App Links: lets a shared https://csa.gov.gh/news|events|campaigns|press/<id>/
+                 link open this app directly instead of a browser. autoVerify
+                 only actually verifies once csa.gov.gh serves
+                 /.well-known/assetlinks.json matching this app's real release
+                 signing key (see csa_mobile_api's content/public_views.py) —
+                 until then Android falls back to asking the user, or just
+                 opens the browser. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="csa.gov.gh"/>
+            </intent-filter>
         </activity>
         <meta-data
             android:name="flutterEmbedding"

@@ -11,4 +11,7 @@ $env:TMP  = $tmp
 $env:TEMP = $tmp
 
 Set-Location -Path $PSScriptRoot
-flutter build apk --release @args
+# --obfuscate scrambles the app's Dart symbol names so the shipped APK is much
+# harder to read; the matching symbol files in build\symbols are what turn a
+# crash report back into readable code, so keep them for each release you ship.
+flutter build apk --release --obfuscate --split-debug-info=build\symbols @args

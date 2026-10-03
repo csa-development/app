@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:image_picker/image_picker.dart';
@@ -21,7 +22,11 @@ Future<void> showProfileImagePicker(BuildContext context) async {
     Navigator.pop(context);
     try {
       final picked = await picker.pickImage(source: source, imageQuality: 85);
-      if (picked != null) {
+      if (picked != null && kIsWeb) {
+        // No documents folder in a browser — the picker's temporary web
+        // link is used directly and only lasts for this browser session.
+        await AuthStorage.saveProfileImage(picked.path);
+      } else if (picked != null) {
         // image_picker's returned path points at a temporary/cache
         // file — the OS is free to clear it at any time (and often
         // does between app sessions), which was silently losing the

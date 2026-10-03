@@ -1,9 +1,12 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:intl_phone_field/phone_number.dart';
 
 import '../../../services/api_service.dart';
 import '../../../services/auth_storage.dart';
+import '../../../services/phone_format.dart';
+import '../../../widgets/local_image.dart';
 import '../../../widgets/profile_image_picker.dart';
 import '../../../widgets/swipe_back.dart';
 import '../../../widgets/top_toast.dart';
@@ -20,10 +23,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
 
   bool _isLoading = false;
   String _originalPhone = '';
+
+  // The flag phone field reads its starting value once, so it is only
+  // built after the saved number has been loaded and split (null until
+  // then). `_phone` is what the user has typed since; `_phoneEdited`
+  // stays false until they touch the field, so merely opening this
+  // screen can never be mistaken for a number change.
+  SplitPhone? _initialPhone;
+  PhoneNumber? _phone;
+  bool _phoneEdited = false;
+
+  // Faded 'xx xxx xxxx'-style placeholder for the selected country.
+  String _phoneHint = phoneMaskForIso('GH');
 
   @override
   void initState() {
@@ -41,8 +55,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
     setState(() {
       _fullNameController.text = fullName ?? '';
       _emailController.text = email ?? '';
-      _phoneController.text = phone ?? '';
       _originalPhone = phone ?? '';
+      _initialPhone = splitStoredPhone(_originalPhone);
+      _phoneHint = phoneMaskForIso(_initialPhone!.isoCode);
     });
   }
 
@@ -50,8 +65,26 @@ class _EditProfilePageState extends State<EditProfilePage> {
   void dispose() {
     _fullNameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
     super.dispose();
+  }
+
+  /// The full international number the user has typed ('+233244123456'),
+  /// or '' if they haven't touched the field or have cleared it.
+  String get _typedPhone {
+    final phone = _phone;
+    if (!_phoneEdited || phone == null || phone.number.isEmpty) return '';
+    return phone.completeNumber;
+  }
+
+  bool get _typedPhoneIsValid {
+    final phone = _phone;
+    if (phone == null) return true;
+    try {
+      return phone.isValidNumber();
+    } catch (_) {
+      // Too short, too long, or an unknown country code.
+      return false;
+    }
   }
 
   Future<void> _saveChanges() async {
@@ -61,11 +94,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
       return;
     }
 
+    // Compared as numbers, not text, so a number saved long ago as
+    // '0244123456' isn't "changed" just because the flag field shows it
+    // as +233 244123456.
+    final newPhone = _typedPhone;
+    final phoneChanged = newPhone.isNotEmpty &&
+        canonicalPhone(newPhone) != canonicalPhone(_originalPhone);
+
+    // Checked before anything is saved or any code is sent, so a half-typed
+    // number never triggers a verification SMS.
+    if (phoneChanged && !_typedPhoneIsValid) {
+      showTopToast(context, 'Enter a valid phone number');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     final accessToken = await AuthStorage.getAccessToken() ?? '';
-    final newPhone = _phoneController.text.trim();
-    final phoneChanged = newPhone != _originalPhone;
 
     // Name/email save immediately, same as before. Phone number
     // changes are handled separately below — a new number has to be
@@ -93,16 +138,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
       phone: _originalPhone,
     );
 
-    if (phoneChanged && newPhone.isNotEmpty) {
+    if (phoneChanged) {
       setState(() => _isLoading = false);
       if (!context.mounted) return;
-      final verified = await _verifyAndSaveNewPhone(newPhone);
-      if (!verified) {
-        // Not confirmed (cancelled, wrong code too many times, etc.)
-        // — put the field back to what's actually saved so the
-        // screen doesn't show an unverified number as if it took.
-        setState(() => _phoneController.text = _originalPhone);
-      }
+      // If the code isn't confirmed (cancelled, wrong, expired) the new
+      // number is simply never saved; the screen closes either way.
+      await _verifyAndSaveNewPhone(newPhone);
       if (!context.mounted) return;
       Navigator.pop(context);
       return;
@@ -305,8 +346,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           valueListenable: AuthStorage.profileImageNotifier,
                           builder: (context, path, _) {
                             return path != null
-                                ? Image.file(
-                                    File(path),
+                                ? localImage(
+                                    path,
                                     fit: BoxFit.cover,
                                     width: 90,
                                     height: 90,
@@ -372,7 +413,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             const SizedBox(height: 16),
 
             _fieldLabel('Phone Number'),
-            _inputField(_phoneController, 'Phone Number', Icons.phone_outlined),
+            _phoneField(),
 
             const SizedBox(height: 40),
 
@@ -418,6 +459,78 @@ class _EditProfilePageState extends State<EditProfilePage> {
           fontWeight: FontWeight.w600,
           color: Colors.black54,
         ),
+      ),
+    );
+  }
+
+  // Same flag + country-code field as the login and registration screens,
+  // styled to match the other fields on this page.
+  Widget _phoneField() {
+    final initial = _initialPhone;
+
+    final box = BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: const Color(0xFFE4E6EB)),
+    );
+
+    if (initial == null) {
+      // Holds the field's place while the saved number loads.
+      return Container(height: 56, decoration: box);
+    }
+
+    const textStyle = TextStyle(
+      fontSize: 15,
+      fontWeight: FontWeight.w500,
+      color: Colors.black87,
+    );
+
+    return Container(
+      decoration: box,
+      child: IntlPhoneField(
+        initialCountryCode: initial.isoCode,
+        initialValue: initial.national,
+        // Lets the package enforce each country's real number length.
+        disableLengthCheck: false,
+        // Digits only, so the country's digit limit is the only thing that
+        // can be typed or pasted.
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        invalidNumberMessage: '',
+        cursorColor: Colors.black54,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          counterText: '',
+          hintText: _phoneHint,
+          hintStyle: const TextStyle(fontSize: 15, color: Colors.black26),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          errorStyle: const TextStyle(height: 0, fontSize: 0),
+        ),
+        style: textStyle,
+        dropdownTextStyle: textStyle,
+        flagsButtonPadding: const EdgeInsets.only(left: 16, right: 8),
+        showDropdownIcon: true,
+        dropdownIcon: const Icon(Icons.arrow_drop_down, color: Colors.black45),
+        onChanged: (phone) {
+          _phone = phone;
+          _phoneEdited = true;
+        },
+        onCountryChanged: (country) {
+          // The digits stay in the box when only the country changes, and
+          // onChanged doesn't fire for that, so rebuild the number here.
+          _phone = PhoneNumber(
+            countryISOCode: country.code,
+            countryCode: '+${country.fullCountryCode}',
+            number: _phone?.number ?? initial.national,
+          );
+          _phoneEdited = true;
+          setState(() => _phoneHint = phoneMaskFor(country));
+        },
       ),
     );
   }

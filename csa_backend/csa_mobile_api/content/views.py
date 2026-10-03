@@ -18,6 +18,9 @@ from csa_shared_models.content.models import (
 )
 
 
+from .event_status import campaign_has_ended, event_has_ended
+
+
 def get_image_url(request, image):
     if image:
         return request.build_absolute_uri(image.url)
@@ -146,6 +149,27 @@ def get_news(request):
 
 
 @api_view(['GET'])
+def get_news_detail(request, news_id):
+    try:
+        article = NewsArticle.objects.get(id=news_id, is_published=True)
+    except NewsArticle.DoesNotExist:
+        return Response({'error': 'Article not found'}, status=404)
+
+    data = {
+        'id': article.id,
+        'title': article.title,
+        'body': article.body,
+        'category': article.category,
+        'category_display': article.get_category_display(),
+        'image': get_image_url(request, article.image),
+        'date_published': article.date_published.isoformat(),
+        'is_breaking': article.is_breaking,
+    }
+
+    return Response({'article': data})
+
+
+@api_view(['GET'])
 def get_alerts(request):
     alerts = NewsArticle.objects.filter(
         is_published=True,
@@ -211,11 +235,40 @@ def get_events(request):
                 if e.end_time else None,
             'image': get_image_url(request, e.image),
             'total_registrations': e.registrations.count(),
+            'has_ended': event_has_ended(e),
         }
         for e in events
     ]
 
     return Response({'events': data})
+
+
+@api_view(['GET'])
+def get_event_detail(request, event_id):
+    try:
+        event = Event.objects.get(id=event_id, is_published=True)
+    except Event.DoesNotExist:
+        return Response({'error': 'Event not found'}, status=404)
+
+    data = {
+        'id': event.id,
+        'title': event.title,
+        'description': event.description,
+        'location': event.location,
+        'latitude': event.latitude,
+        'longitude': event.longitude,
+        'event_date': event.event_date.strftime('%B %d, %Y'),
+        'end_date': event.end_date.strftime('%B %d, %Y') if event.end_date else None,
+        'start_time': event.start_time.strftime('%I:%M %p').lstrip('0')
+            if event.start_time else None,
+        'end_time': event.end_time.strftime('%I:%M %p').lstrip('0')
+            if event.end_time else None,
+        'image': get_image_url(request, event.image),
+        'total_registrations': event.registrations.count(),
+        'has_ended': event_has_ended(event),
+    }
+
+    return Response({'event': data})
 
 
 @api_view(['GET'])
@@ -238,6 +291,7 @@ def get_campaigns(request):
             'category': c.category,
             'category_display': c.get_category_display(),
             'image': get_image_url(request, c.image),
+            'has_ended': campaign_has_ended(c),
         }
         for c in campaigns
     ]
@@ -320,6 +374,7 @@ def get_campaign_detail(request, campaign_id):
         'start_date': campaign.start_date.strftime('%B %d, %Y'),
         'end_date': campaign.end_date.strftime('%B %d, %Y') if campaign.end_date else None,
         'start_date_iso': campaign.start_date.isoformat(),
+        'has_ended': campaign_has_ended(campaign),
         'end_date_iso': campaign.end_date.isoformat() if campaign.end_date else None,
         'target_audience': campaign.target_audience,
         'location': campaign.location,
@@ -357,6 +412,24 @@ def get_press_releases(request):
     return Response({'press_releases': data})
 
 
+@api_view(['GET'])
+def get_press_release_detail(request, release_id):
+    try:
+        release = PressRelease.objects.get(id=release_id, is_published=True)
+    except PressRelease.DoesNotExist:
+        return Response({'error': 'Press release not found'}, status=404)
+
+    data = {
+        'id': release.id,
+        'title': release.title,
+        'body': release.body,
+        'image': get_image_url(request, release.image),
+        'date_published': release.date_published.strftime('%B %d, %Y'),
+    }
+
+    return Response({'press_release': data})
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def register_event_interest(request, event_id):
@@ -364,6 +437,16 @@ def register_event_interest(request, event_id):
         event = Event.objects.get(id=event_id, is_published=True)
     except Event.DoesNotExist:
         return Response({'error': 'Event not found'}, status=404)
+
+    # Ended: no new sign-ups. Someone already registered just gets their
+    # existing registration back below.
+    if event_has_ended(event) and not EventRegistration.objects.filter(
+        user=request.user, event=event
+    ).exists():
+        return Response(
+            {'error': 'This event has ended. Registration is closed.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     registration, created = EventRegistration.objects.get_or_create(
         user=request.user,
@@ -399,6 +482,13 @@ def register_event_interest(request, event_id):
 def unregister_event_interest(request, event_id):
     try:
         event = Event.objects.get(id=event_id, is_published=True)
+        # An ended event's registrations are a record of who signed up and
+        # who attended, so they can no longer be removed.
+        if event_has_ended(event):
+            return Response(
+                {'error': 'This event has ended.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         registration = EventRegistration.objects.get(
             user=request.user,
             event=event,
@@ -429,6 +519,7 @@ def check_event_registration(request, event_id):
             'check_in_code': registration.check_in_code if registration else None,
             'checked_in': registration.checked_in if registration else False,
             'total_registrations': event.registrations.count(),
+            'has_ended': event_has_ended(event),
         }, status=status.HTTP_200_OK)
     except Event.DoesNotExist:
         return Response({'error': 'Event not found'}, status=404)
@@ -441,6 +532,14 @@ def register_campaign_interest(request, campaign_id):
         campaign = Campaign.objects.get(id=campaign_id, is_published=True)
     except Campaign.DoesNotExist:
         return Response({'error': 'Campaign not found'}, status=404)
+
+    if campaign_has_ended(campaign) and not CampaignRegistration.objects.filter(
+        user=request.user, campaign=campaign
+    ).exists():
+        return Response(
+            {'error': 'This campaign has ended. Registration is closed.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     registration, created = CampaignRegistration.objects.get_or_create(
         user=request.user,
@@ -475,6 +574,11 @@ def register_campaign_interest(request, campaign_id):
 def unregister_campaign_interest(request, campaign_id):
     try:
         campaign = Campaign.objects.get(id=campaign_id, is_published=True)
+        if campaign_has_ended(campaign):
+            return Response(
+                {'error': 'This campaign has ended.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         registration = CampaignRegistration.objects.get(
             user=request.user,
             campaign=campaign,
@@ -505,6 +609,7 @@ def check_campaign_registration(request, campaign_id):
             'check_in_code': registration.check_in_code if registration else None,
             'checked_in': registration.checked_in if registration else False,
             'total_registrations': campaign.registrations.count(),
+            'has_ended': campaign_has_ended(campaign),
         }, status=status.HTTP_200_OK)
     except Campaign.DoesNotExist:
         return Response({'error': 'Campaign not found'}, status=404)

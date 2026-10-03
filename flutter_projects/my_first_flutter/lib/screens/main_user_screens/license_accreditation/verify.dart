@@ -177,7 +177,7 @@ class _VerifyliState extends State<Verifyli> {
 
             const SizedBox(height: 32),
 
-            SizedBox(
+            SizedBox( 
               width: double.infinity,
               height: 52,
               child: ElevatedButton(

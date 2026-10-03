@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'continue_login_flow.dart';
 import 'main_user_screens/about_csa.dart';
 import 'main_user_screens/contact_csa.dart';
+import 'main_user_screens/cybersecurity_act.dart';
 import 'main_user_screens/evens_campaign.dart';
 import 'main_user_screens/license_accreditation.dart';
 import 'main_user_screens/news_advisories.dart';
@@ -130,6 +131,15 @@ class MainUserScreen extends StatelessWidget {
                       'Learn more about the Cyber Security Authority.',
                   icon: Icons.info_outline_rounded,
                   destination: const AboutCsa(),
+                ),
+
+                _menuTile(
+                  context,
+                  title: 'Cybersecurity Act, 2020 (Act 1038)',
+                  subtitle:
+                      'Read the full text of the law that governs cybersecurity in Ghana.',
+                  icon: Icons.balance_outlined,
+                  destination: const CybersecurityActScreen(),
                 ),
 
                 _menuTile(

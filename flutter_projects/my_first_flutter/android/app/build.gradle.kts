@@ -1,3 +1,14 @@
+import java.util.Properties
+
+// Release signing key. android/key.properties and the keystore it points
+// at are git-ignored and live only on the machine that builds releases.
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hasReleaseKey = keystorePropertiesFile.exists()
+if (hasReleaseKey) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -34,11 +45,29 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (hasReleaseKey) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                // No android/key.properties on this machine: still builds
+                // (so a fresh checkout isn't blocked) but is signed with the
+                // public debug key — fine for local testing, never for
+                // distribution.
+                logger.warn("WARNING: android/key.properties not found - signing the release build with the DEBUG key.")
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 }

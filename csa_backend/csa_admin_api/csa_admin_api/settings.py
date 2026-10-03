@@ -163,8 +163,10 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = SHARED_ROOT / 'shared_media'
 
 REST_FRAMEWORK = {
+    # Reads the login from the HttpOnly cookie (or an explicit Bearer
+    # header) — see accounts/cookie_auth.py.
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'accounts.cookie_authentication.CookieJWTAuthentication',
     ),
     # Nothing is public by default — a view that forgets its own
     # @permission_classes is denied, not exposed.
